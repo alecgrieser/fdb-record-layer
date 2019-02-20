@@ -20,7 +20,7 @@
 
 package com.apple.foundationdb.record;
 
-import com.apple.foundationdb.API;
+import com.apple.foundationdb.annotations.API;
 
 import javax.annotation.Nonnull;
 import java.util.concurrent.atomic.AtomicLong;

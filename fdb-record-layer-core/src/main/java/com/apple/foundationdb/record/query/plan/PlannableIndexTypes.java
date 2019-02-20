@@ -20,7 +20,7 @@
 
 package com.apple.foundationdb.record.query.plan;
 
-import com.apple.foundationdb.API;
+import com.apple.foundationdb.annotations.API;
 import com.apple.foundationdb.record.metadata.IndexTypes;
 import com.google.common.collect.Sets;
 

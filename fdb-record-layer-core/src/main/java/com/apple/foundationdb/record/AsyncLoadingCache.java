@@ -20,7 +20,7 @@
 
 package com.apple.foundationdb.record;
 
-import com.apple.foundationdb.API;
+import com.apple.foundationdb.annotations.API;
 import com.apple.foundationdb.async.MoreAsyncUtil;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;

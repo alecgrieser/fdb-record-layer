@@ -36,7 +36,9 @@ As the [versioning guide](Versioning.md) details, it cannot always be determined
 
 ### Breaking changes
 
-The `IndexEntry` class now contains a reference to its source index. This meant breaking the constructor on that class. This class should probably only have been instantiated from within the Record Layer, so its old constructors have been removed and are now marked as [`INTERNAL`](https://javadoc.io/page/org.foundationdb/fdb-extensions/latest/com/apple/foundationdb/API.Status.html#INTERNAL).
+The `IndexEntry` class now contains a reference to its source index. This meant breaking the constructor on that class. This class should probably only have been instantiated from within the Record Layer, so its old constructors have been removed and are now marked as [`INTERNAL`](https://javadoc.io/page/org.foundationdb/fdb-extensions/latest/com/apple/foundationdb/annotations/API.Status.html#INTERNAL).
+
+The API stability annotations have been moved to their own package. This allows for links to the annotation stability levels in Javadoc pages to start working.
 
 ### Newly deprecated
 
@@ -65,7 +67,7 @@ Methods for retrieving a record from a record store based on an index entry gene
 * **Breaking change** Change 2 [(Issue #NNN)](https://github.com/FoundationDB/fdb-record-layer/issues/NNN)
 * **Breaking change** Change 3 [(Issue #NNN)](https://github.com/FoundationDB/fdb-record-layer/issues/NNN)
 * **Breaking change** Change 4 [(Issue #NNN)](https://github.com/FoundationDB/fdb-record-layer/issues/NNN)
-* **Breaking change** Change 5 [(Issue #NNN)](https://github.com/FoundationDB/fdb-record-layer/issues/NNN)
+* **Breaking change** The API stability annotations have been moved into `com.apple.foundationdb.annotations` [(Issue #406)](https://github.com/FoundationDB/fdb-record-layer/issues/406)
 
 // end next release
 -->

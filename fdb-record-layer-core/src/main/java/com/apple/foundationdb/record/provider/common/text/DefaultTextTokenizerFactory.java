@@ -20,7 +20,7 @@
 
 package com.apple.foundationdb.record.provider.common.text;
 
-import com.apple.foundationdb.API;
+import com.apple.foundationdb.annotations.API;
 import com.google.auto.service.AutoService;
 
 import javax.annotation.Nonnull;

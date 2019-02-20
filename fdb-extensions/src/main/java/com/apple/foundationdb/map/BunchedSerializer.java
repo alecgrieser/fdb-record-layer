@@ -20,7 +20,7 @@
 
 package com.apple.foundationdb.map;
 
-import com.apple.foundationdb.API;
+import com.apple.foundationdb.annotations.API;
 
 import java.util.List;
 import java.util.Map;

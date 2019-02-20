@@ -1,9 +1,9 @@
 /*
- * RelationalExpressionWithChildren.java
+ * package-info.java
  *
  * This source file is part of the FoundationDB open source project
  *
- * Copyright 2015-2018 Apple Inc. and the FoundationDB project authors
+ * Copyright 2015-2019 Apple Inc. and the FoundationDB project authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,15 +18,8 @@
  * limitations under the License.
  */
 
-package com.apple.foundationdb.record.query.plan.temp.expressions;
-
-import com.apple.foundationdb.annotations.API;
-
 /**
- * A parent interface for {@link RelationalPlannerExpression}s that have relational children (as opposed to non-relation
- * children, such as {@link com.apple.foundationdb.record.query.expressions.QueryComponent}s).
+ * Annotations defined for use with FoundationDB. Currently, this only includes the {@link com.apple.foundationdb.annotations.API API}
+ * stability annotations, but more could be added in the future.
  */
-@API(API.Status.EXPERIMENTAL)
-public interface RelationalExpressionWithChildren extends RelationalPlannerExpression {
-    int getRelationalChildCount();
-}
+package com.apple.foundationdb.annotations;

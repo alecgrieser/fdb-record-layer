@@ -20,7 +20,7 @@
 
 package com.apple.foundationdb.record.logging;
 
-import com.apple.foundationdb.API;
+import com.apple.foundationdb.annotations.API;
 
 import javax.annotation.Nonnull;
 

@@ -20,7 +20,7 @@
 
 package com.apple.foundationdb.record.metadata;
 
-import com.apple.foundationdb.API;
+import com.apple.foundationdb.annotations.API;
 import com.apple.foundationdb.record.RecordMetaDataProto;
 import com.apple.foundationdb.tuple.Tuple;
 import com.google.protobuf.ByteString;

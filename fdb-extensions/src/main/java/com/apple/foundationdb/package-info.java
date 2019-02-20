@@ -20,7 +20,7 @@
 
 /**
  * Extensions to the FoundationDB Java API.
- * Directly within this package, there are only the {@link com.apple.foundationdb.API} stability
+ * Directly within this package, there are only the {@link com.apple.foundationdb.annotations.API} stability
  * annotations which are used within the <a href="https://foundationdb.github.io/fdb-record-layer/">Record Layer</a>
  * project to annotate the stability of various functions and classes.
  */
