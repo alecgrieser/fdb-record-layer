@@ -24,6 +24,7 @@ import com.apple.foundationdb.annotation.API;
 import com.apple.foundationdb.record.RecordCoreException;
 import com.apple.foundationdb.record.RecordMetaDataProto;
 import com.apple.foundationdb.record.metadata.Key;
+import com.apple.foundationdb.record.metadata.expressions.visitors.KeyExpressionVisitor;
 import com.apple.foundationdb.record.provider.foundationdb.FDBRecord;
 import com.apple.foundationdb.record.query.expressions.Query;
 import com.apple.foundationdb.record.query.plan.temp.ExpressionRef;
@@ -197,6 +198,11 @@ public class FieldKeyExpression extends BaseKeyExpression implements AtomKeyExpr
     @Override
     public RecordMetaDataProto.KeyExpression toKeyExpression() {
         return RecordMetaDataProto.KeyExpression.newBuilder().setField(toProto()).build();
+    }
+
+    @Override
+    public <T> T accept(@Nonnull KeyExpressionVisitor<T> visitor) {
+        return visitor.visit(this);
     }
 
     @Nonnull

@@ -344,10 +344,10 @@ public interface RecordCursor<T> extends AutoCloseable, Iterator<T> {
     Executor getExecutor();
 
     /**
-     * Accept a visit from hierarchical visitor, which implements {@link RecordCursorVisitor}.
-     * By contract, implementations of this method must return the value of <code>visitor.visitLeave(this)</code>,
+     * Accept a visit from hierarchical visitors, which implements {@link RecordCursorVisitor}.
+     * By contract, implementations of this method must return the value of <code>visitors.visitLeave(this)</code>,
      * which determines whether or not subsequent siblings of this cursor should be visited.
-     * @param visitor a hierarchical visitor
+     * @param visitor a hierarchical visitors
      * @return <code>true</code> if the subsequent siblings of the <code>cursor</code> should be visited, and <code>false</code> otherwise
      */
     boolean accept(@Nonnull RecordCursorVisitor visitor);

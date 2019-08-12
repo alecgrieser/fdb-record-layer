@@ -36,10 +36,10 @@ import java.util.List;
  *
  * <p>
  * To avoid littering {@link PlannerExpression} classes with methods for various properties, properties are implemented
- * using a variant of the hierarchical visitor pattern the tree of {@code PlannerExpression}s and {@link ExpressionRef}s.
- * A property can be evaluated against an expression tree by having the visitor traverse the tree. Note that the
+ * using a variant of the hierarchical visitors pattern the tree of {@code PlannerExpression}s and {@link ExpressionRef}s.
+ * A property can be evaluated against an expression tree by having the visitors traverse the tree. Note that the
  * "{@code visitLeave()}" methods {@link #evaluateAtExpression} and {@link #evaluateAtRef} are handed the results of the
- * visitor evaluated at their children and members respectively. Since most properties are easy to describe as a
+ * visitors evaluated at their children and members respectively. Since most properties are easy to describe as a
  * recursion with depth one, this makes properties easier to read and write.
  * </p>
  *

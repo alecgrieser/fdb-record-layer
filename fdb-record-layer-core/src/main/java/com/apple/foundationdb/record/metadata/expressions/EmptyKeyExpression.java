@@ -23,6 +23,7 @@ package com.apple.foundationdb.record.metadata.expressions;
 import com.apple.foundationdb.annotation.API;
 import com.apple.foundationdb.record.RecordMetaDataProto;
 import com.apple.foundationdb.record.metadata.Key;
+import com.apple.foundationdb.record.metadata.expressions.visitors.KeyExpressionVisitor;
 import com.apple.foundationdb.record.provider.foundationdb.FDBRecord;
 import com.apple.foundationdb.record.query.plan.temp.ExpressionRef;
 import com.apple.foundationdb.record.query.plan.temp.PlannerExpression;
@@ -80,6 +81,11 @@ public class EmptyKeyExpression extends BaseKeyExpression implements KeyExpressi
     @Override
     public RecordMetaDataProto.KeyExpression toKeyExpression() {
         return EMPTY_PROTO;
+    }
+
+    @Override
+    public <T> T accept(@Nonnull KeyExpressionVisitor<T> visitor) {
+        return visitor.visit(this);
     }
 
     @Nonnull

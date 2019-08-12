@@ -23,7 +23,7 @@ package com.apple.foundationdb.record;
 import com.apple.foundationdb.annotation.API;
 
 /**
- * A hierarchical visitor for record cursor trees designed mostly to allow tests to gather information without adding
+ * A hierarchical visitors for record cursor trees designed mostly to allow tests to gather information without adding
  * invasive query methods to the {@link RecordCursor} interface.
  * Note that the "ordering" of children of each <code>RecordCursor</code> is determined by individual implementors.
  */

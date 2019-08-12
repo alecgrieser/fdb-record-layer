@@ -24,6 +24,7 @@ import com.apple.foundationdb.annotation.API;
 import com.apple.foundationdb.record.RecordCoreException;
 import com.apple.foundationdb.record.RecordMetaDataProto;
 import com.apple.foundationdb.record.metadata.Key;
+import com.apple.foundationdb.record.metadata.expressions.visitors.KeyExpressionVisitor;
 import com.apple.foundationdb.record.provider.foundationdb.FDBRecord;
 import com.apple.foundationdb.record.query.plan.temp.ExpressionRef;
 import com.apple.foundationdb.record.query.plan.temp.PlannerExpression;
@@ -102,6 +103,10 @@ public class SplitKeyExpression extends BaseKeyExpression implements AtomKeyExpr
         return splitSize;
     }
 
+    public int getSplitSize() {
+        return splitSize;
+    }
+
     @Nonnull
     @Override
     public RecordMetaDataProto.Split toProto() throws SerializationException {
@@ -115,6 +120,11 @@ public class SplitKeyExpression extends BaseKeyExpression implements AtomKeyExpr
     @Override
     public RecordMetaDataProto.KeyExpression toKeyExpression() {
         return RecordMetaDataProto.KeyExpression.newBuilder().setSplit(toProto()).build();
+    }
+
+    @Override
+    public <T> T accept(@Nonnull KeyExpressionVisitor<T> visitor) {
+        return visitor.visit(this);
     }
 
     @Nonnull

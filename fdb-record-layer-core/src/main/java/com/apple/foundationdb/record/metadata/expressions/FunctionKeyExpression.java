@@ -25,6 +25,7 @@ import com.apple.foundationdb.record.RecordCoreException;
 import com.apple.foundationdb.record.RecordMetaDataProto;
 import com.apple.foundationdb.record.logging.LogMessageKeys;
 import com.apple.foundationdb.record.metadata.Key;
+import com.apple.foundationdb.record.metadata.expressions.visitors.KeyExpressionVisitor;
 import com.apple.foundationdb.record.provider.foundationdb.FDBRecord;
 import com.apple.foundationdb.record.query.plan.temp.ExpressionRef;
 import com.apple.foundationdb.record.query.plan.temp.PlannerExpression;
@@ -251,6 +252,11 @@ public abstract class FunctionKeyExpression extends BaseKeyExpression implements
     @Override
     public final RecordMetaDataProto.KeyExpression toKeyExpression() {
         return RecordMetaDataProto.KeyExpression.newBuilder().setFunction(toProto()).build();
+    }
+
+    @Override
+    public <T> T accept(@Nonnull KeyExpressionVisitor<T> visitor) {
+        return visitor.visit(this);
     }
 
     @Override

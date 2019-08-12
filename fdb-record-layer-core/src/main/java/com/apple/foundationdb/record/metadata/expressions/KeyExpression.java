@@ -25,6 +25,7 @@ import com.apple.foundationdb.record.PlanHashable;
 import com.apple.foundationdb.record.RecordCoreException;
 import com.apple.foundationdb.record.RecordMetaDataProto;
 import com.apple.foundationdb.record.metadata.Key;
+import com.apple.foundationdb.record.metadata.expressions.visitors.KeyExpressionVisitor;
 import com.apple.foundationdb.record.provider.foundationdb.FDBRecord;
 import com.apple.foundationdb.record.query.plan.temp.PlannerExpression;
 import com.google.protobuf.Descriptors;
@@ -178,6 +179,8 @@ public interface KeyExpression extends PlanHashable, PlannerExpression {
 
     @Nonnull
     RecordMetaDataProto.KeyExpression toKeyExpression();
+
+    <T> T accept(@Nonnull KeyExpressionVisitor<T> visitor);
 
     /**
      * Get key in normalized form for comparing field-by-field.
