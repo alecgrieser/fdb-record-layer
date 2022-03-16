@@ -436,6 +436,10 @@ public class FDBStoreTimer extends StoreTimer {
         WAIT_LUCENE_RENAME("lucene rename"),
         /** Wait to perform validation of resolver reverse directory mapping. */
         WAIT_VALIDATE_RESOLVER("wait validating resolver"),
+        /** Time to get a file reference from a lucene file name.*/
+        WAIT_LUCENE_GET_FILE_REFERENCE("lucene get file reference"),
+        /** Time to get a data block from a data file.*/
+        WAIT_LUCENE_GET_DATA_BLOCK("lucene get data block"),
         ;
 
         private final String title;

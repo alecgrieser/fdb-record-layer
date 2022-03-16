@@ -23,6 +23,7 @@ package com.apple.foundationdb.record.lucene.directory;
 import com.apple.foundationdb.annotation.API;
 import com.apple.foundationdb.record.logging.KeyValueLogMessage;
 import com.apple.foundationdb.record.logging.LogMessageKeys;
+import com.apple.foundationdb.record.provider.foundationdb.FDBStoreTimer;
 import org.apache.lucene.store.IndexInput;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -115,6 +116,14 @@ public class FDBIndexInput extends IndexInput {
         }
     }
 
+    private FDBLuceneFileReference getReference() {
+        return fdbDirectory.getContext().asyncToSync(FDBStoreTimer.Waits.WAIT_LUCENE_GET_FILE_REFERENCE, reference);
+    }
+
+    private byte[] getCurrentData() {
+        return fdbDirectory.getContext().asyncToSync(FDBStoreTimer.Waits.WAIT_LUCENE_GET_DATA_BLOCK, currentData);
+    }
+
     /**
      * The current relative position not including any offsets provided by slices.
      *
@@ -168,7 +177,7 @@ public class FDBIndexInput extends IndexInput {
         if (LOGGER.isTraceEnabled()) {
             LOGGER.trace(getLogMessage("length"));
         }
-        return reference.join().getSize();
+        return getReference().getSize();
     }
 
     /**
@@ -191,8 +200,9 @@ public class FDBIndexInput extends IndexInput {
                     LogMessageKeys.OFFSET, offset,
                     LogMessageKeys.LENGTH, length));
         }
+        final FDBLuceneFileReference referenceValue = getReference();
         return new FDBIndexInput(resourceDescription, fdbDirectory, CompletableFuture.completedFuture(
-                new FDBLuceneFileReference(reference.join().getId(), length, length, reference.join().getBlockSize())),
+                new FDBLuceneFileReference(referenceValue.getId(), length, length, referenceValue.getBlockSize())),
                 offset + initialOffset, 0L, currentBlock, currentData
                 );
     }
@@ -221,16 +231,18 @@ public class FDBIndexInput extends IndexInput {
         if (LOGGER.isTraceEnabled()) {
             LOGGER.trace(getLogMessage("readByte"));
         }
+        final FDBLuceneFileReference referenceValue = getReference();
         try {
-            int probe = (int)(absolutePosition() % reference.join().getBlockSize());
+            int probe = (int)(absolutePosition() % referenceValue.getBlockSize());
             position++;
-            verify(currentData.join() != null, "current Data is null: " + resourceDescription + " " + reference.join().getId());
-            return currentData.join()[probe];
+            byte[] currentDataBlock = getCurrentData();
+            verify(currentDataBlock != null, "current Data is null: %s %s", resourceDescription, referenceValue.getId());
+            return currentDataBlock[probe];
         } finally {
-            if (absolutePosition() % reference.join().getBlockSize() == 0) {
+            if (absolutePosition() % referenceValue.getBlockSize() == 0) {
                 currentBlock++;
                 numberOfSeeks++;
-                this.currentData = fdbDirectory.readBlock(resourceDescription, reference, currentBlock);
+                this.currentData = fdbDirectory.readBlock(resourceDescription, referenceValue, currentBlock);
             }
         }
     }
@@ -252,11 +264,12 @@ public class FDBIndexInput extends IndexInput {
                     LogMessageKeys.LENGTH, length));
         }
         int bytesRead = 0;
-        long blockSize = reference.join().getBlockSize();
+        final FDBLuceneFileReference referenceValue = getReference();
+        long blockSize = referenceValue.getBlockSize();
         while (bytesRead < length) {
             long inBlockPosition = (absolutePosition() % blockSize);
             int toRead = (int) (length - bytesRead + inBlockPosition > blockSize ? blockSize - inBlockPosition : length - bytesRead);
-            System.arraycopy(currentData.join(), (int)inBlockPosition, bytes, bytesRead + offset, toRead);
+            System.arraycopy(getCurrentData(), (int)inBlockPosition, bytes, bytesRead + offset, toRead);
             bytesRead += toRead;
             position += toRead;
             if (absolutePosition() % blockSize == 0) {
@@ -270,7 +283,7 @@ public class FDBIndexInput extends IndexInput {
                             LogMessageKeys.POSITION, position,
                             LogMessageKeys.INITIAL_OFFSET, initialOffset));
                 }
-                this.currentData = fdbDirectory.readBlock(resourceDescription, reference, currentBlock);
+                this.currentData = fdbDirectory.readBlock(resourceDescription, referenceValue, currentBlock);
             }
         }
 
@@ -284,7 +297,7 @@ public class FDBIndexInput extends IndexInput {
      * @return block
      */
     private int getBlock(long position) {
-        return (int) ( (position + initialOffset) / reference.join().getBlockSize());
+        return (int) ( (position + initialOffset) / getReference().getBlockSize());
     }
 
     @Nonnull

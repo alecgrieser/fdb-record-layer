@@ -95,11 +95,12 @@ public class DirectoryCommitCheckAsync implements FDBRecordContext.CommitCheckAs
     @Nonnull
     protected static DirectoryCommitCheckAsync getOrCreateDirectoryCommitCheckAsync(@Nonnull final IndexMaintainerState state, @Nonnull Subspace directorySubspace) {
         synchronized (state.context) {
-            DirectoryCommitCheckAsync directoryCheck = state.context.getInSession(getReaderSubspace(directorySubspace), DirectoryCommitCheckAsync.class);
+            final Subspace readerSubspace = getReaderSubspace(directorySubspace);
+            DirectoryCommitCheckAsync directoryCheck = state.context.getInSession(readerSubspace, DirectoryCommitCheckAsync.class);
             if (directoryCheck == null) {
                 directoryCheck = new DirectoryCommitCheckAsync(directorySubspace, state.context);
                 state.context.addCommitCheck(directoryCheck);
-                state.context.putInSessionIfAbsent(getReaderSubspace(directorySubspace), directoryCheck);
+                state.context.putInSessionIfAbsent(readerSubspace, directoryCheck);
             }
             return directoryCheck;
         }

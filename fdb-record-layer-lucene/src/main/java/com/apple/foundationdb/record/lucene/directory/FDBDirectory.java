@@ -24,7 +24,6 @@ import com.apple.foundationdb.KeyValue;
 import com.apple.foundationdb.annotation.API;
 import com.apple.foundationdb.record.RecordCoreArgumentException;
 import com.apple.foundationdb.record.RecordCoreException;
-import com.apple.foundationdb.record.logging.CompletionExceptionLogHelper;
 import com.apple.foundationdb.record.logging.KeyValueLogMessage;
 import com.apple.foundationdb.record.logging.LogMessageKeys;
 import com.apple.foundationdb.record.lucene.LuceneRecordContextProperties;
@@ -61,7 +60,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
@@ -312,30 +310,28 @@ public class FDBDirectory extends Directory {
      * @throws RecordCoreException if blockCache fails to get the data from the block
      * @throws RecordCoreArgumentException if a reference with that id hasn't been written yet.
      */
-    @SuppressWarnings("PMD.UnusedNullCheckInEquals") // checks and throws more relevant exception
     @Nonnull
     public CompletableFuture<byte[]> readBlock(@Nonnull String resourceDescription, @Nonnull CompletableFuture<FDBLuceneFileReference> referenceFuture, int block) throws RecordCoreException {
-        try {
-            if (LOGGER.isTraceEnabled()) {
-                LOGGER.trace(getLogMessage("readBlock",
-                        LogMessageKeys.FILE_NAME, resourceDescription,
-                        LogMessageKeys.BLOCK_NUMBER, block));
-            }
-            final FDBLuceneFileReference reference = referenceFuture.join(); // Tried to fully pipeline this but the reality is that this is mostly cached after listAll, delete, etc.
-            if (reference == null) {
-                throw new RecordCoreArgumentException(String.format("No reference with name %s was found", resourceDescription));
-            }
-            Long id = reference.getId();
-
-            long start = System.nanoTime();
-            return context.instrument(FDBStoreTimer.Events.LUCENE_READ_BLOCK,blockCache.get(Pair.of(id, block),
-                    () -> context.instrument(FDBStoreTimer.Events.LUCENE_FDB_READ_BLOCK,
-                            context.ensureActive().get(dataSubspace.pack(Tuple.from(id, block)))
-                                    .thenApplyAsync(data -> LuceneSerializer.decode(data)))
-            ), start);
-        } catch (ExecutionException e) {
-            throw new RecordCoreException(CompletionExceptionLogHelper.asCause(e));
+        if (LOGGER.isTraceEnabled()) {
+            LOGGER.trace(getLogMessage("readBlock",
+                    LogMessageKeys.FILE_NAME, resourceDescription,
+                    LogMessageKeys.BLOCK_NUMBER, block));
         }
+        return referenceFuture.thenCompose(reference -> readBlock(resourceDescription, reference, block));
+    }
+
+    @Nonnull
+    public CompletableFuture<byte[]> readBlock(@Nonnull String resourceDescription, @Nullable FDBLuceneFileReference reference, int block) throws RecordCoreException {
+        if (reference == null) {
+            throw new RecordCoreArgumentException(String.format("No reference with name %s was found", resourceDescription));
+        }
+        long id = reference.getId();
+        long start = System.nanoTime();
+        return context.instrument(FDBStoreTimer.Events.LUCENE_READ_BLOCK, blockCache.asMap().computeIfAbsent(Pair.of(id, block),
+                ignore -> context.instrument(FDBStoreTimer.Events.LUCENE_FDB_READ_BLOCK,
+                        context.ensureActive().get(dataSubspace.pack(Tuple.from(id, block)))
+                                .thenApply(LuceneSerializer::decode))
+        ), start);
     }
 
     /**
@@ -380,7 +376,9 @@ public class FDBDirectory extends Directory {
             // Only composite files are prefetched.
             if (name.endsWith(".cfs")) {
                 try {
-                    readBlock(name, CompletableFuture.completedFuture(fileReference), 0);
+                    // Fire off a future so that the first block in each .cfs file is pre-fetched into the cache,
+                    // though don't block on it here
+                    readBlock(name, fileReference, 0);
                 } catch (RecordCoreException e) {
                     LOGGER.warn(getLogMessage("Exception thrown during prefetch",
                             LogMessageKeys.FILE_NAME, name));
@@ -423,7 +421,7 @@ public class FDBDirectory extends Directory {
         if (isEntriesFile(name) || isSegmentInfo(name)) {
             return;
         }
-        boolean deleted = context.asyncToSync(FDBStoreTimer.Waits.WAIT_LUCENE_DELETE_FILE, getFDBLuceneFileReference(name).thenApplyAsync(
+        boolean deleted = context.asyncToSync(FDBStoreTimer.Waits.WAIT_LUCENE_DELETE_FILE, getFDBLuceneFileReference(name).thenApply(
                 (value) -> {
                     if (value == null) {
                         return false;
@@ -588,7 +586,7 @@ public class FDBDirectory extends Directory {
     /**
      * We delete inline vs. batching them together.
      *
-     * @return Emtpy set of strings
+     * @return Empty set of strings
      */
     @Override
     @Nonnull
