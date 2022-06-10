@@ -20,6 +20,7 @@
 
 package com.apple.foundationdb.record.provider.foundationdb;
 
+import com.apple.foundationdb.FDBException;
 import com.apple.foundationdb.record.ExecuteProperties;
 import com.apple.foundationdb.record.IndexEntry;
 import com.apple.foundationdb.record.IndexScanType;
@@ -27,6 +28,7 @@ import com.apple.foundationdb.record.IsolationLevel;
 import com.apple.foundationdb.record.RecordCoreException;
 import com.apple.foundationdb.record.RecordCoreStorageException;
 import com.apple.foundationdb.record.RecordCursor;
+import com.apple.foundationdb.record.RecordCursorResult;
 import com.apple.foundationdb.record.ScanProperties;
 import com.apple.foundationdb.record.TestRecords1Proto;
 import com.apple.foundationdb.record.TupleRange;
@@ -48,12 +50,17 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
 import javax.annotation.Nonnull;
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -429,6 +436,84 @@ class RemoteFetchTest extends RemoteFetchTestBase {
             }
             c--;
         }
+    }
+
+    @Test
+    void modifyUnindexedReturned() {
+        assumeTrue(recordStore.getContext().isAPIVersionAtLeast(APIVersion.API_VERSION_7_1));
+
+        List<TestRecords1Proto.MySimpleRecord> created = new ArrayList<>();
+        for (int i = 0; i < 500; i++) {
+            created.add(TestRecords1Proto.MySimpleRecord.newBuilder()
+                    .setRecNo(i)
+                    .setNumValue3Indexed(i % 3)
+                    .setNumValueUnique(i)
+                    .build());
+        }
+
+        try (FDBRecordContext context = openContext()) {
+            openSimpleRecordStore(context, splitRecordsHook);
+            recordStore.deleteAllRecords();
+            commit(context);
+        }
+
+        Iterator<TestRecords1Proto.MySimpleRecord> createdIterator = created.iterator();
+        while (createdIterator.hasNext()) {
+            try (FDBRecordContext context = openContext()) {
+                openSimpleRecordStore(context, splitRecordsHook);
+                int i = 0;
+                while (i < 50 && createdIterator.hasNext()) {
+                    recordStore.saveRecord(createdIterator.next());
+                    i++;
+                }
+                commit(context);
+            }
+        }
+
+        // Modify record and then scan unmodified index
+        try (FDBRecordContext context = openContext()) {
+            openSimpleRecordStore(context, splitRecordsHook);
+
+            // Update a record. This record will eventually be returned in a query, but we do *not* modify
+            // a field in the index being scanned
+            TestRecords1Proto.MySimpleRecord lastRecord = created.get(created.size() - 1);
+            recordStore.saveRecord(lastRecord.toBuilder()
+                    .setStrValueIndexed("foo")
+                    .build());
+
+            // Use remote fetch to scan the num_value_unique index. The first few results should return
+            // data (essentially the first few pages of data from scanning the index), but once it
+            // gets to the final page, it should fail because it sees a modified range when trying to look
+            // up the record
+            int scannedBeforeErr = 0;
+            Exception err = null;
+            try (RecordCursor<FDBIndexedRecord<Message>> cursor = recordStore.scanIndexRemoteFetch(
+                    "MySimpleRecord$num_value_unique",
+                    new IndexScanRange(IndexScanType.BY_VALUE, TupleRange.ALL),
+                    recordStore.getRecordMetaData().getRecordType("MySimpleRecord").getPrimaryKey(),
+                    null,
+                    ScanProperties.FORWARD_SCAN,
+                    IndexOrphanBehavior.ERROR)) {
+                boolean done = false;
+                do {
+                    try {
+                        RecordCursorResult<?> result = cursor.getNext();
+                        scannedBeforeErr++;
+                        done = !result.hasNext();
+                    } catch (Exception e) {
+                        err = e;
+                    }
+                } while (!done && err == null);
+            }
+
+            assertThat(scannedBeforeErr, greaterThan(0));
+            assertThat(err, notNullValue());
+            FDBException fdbCause = FDBExceptions.getFDBCause(err);
+            assertThat(fdbCause, notNullValue());
+            assertEquals(2039, fdbCause.getCode());
+            assertThat(fdbCause.getMessage(), containsString("getMappedRange tries to read data that were previously written"));
+        }
+
     }
 
     private List<FDBIndexedRecord<Message>> scanIndex(final IndexOrphanBehavior orphanBehavior) throws InterruptedException, ExecutionException {

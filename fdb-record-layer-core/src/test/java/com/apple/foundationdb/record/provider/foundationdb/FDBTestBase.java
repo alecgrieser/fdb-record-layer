@@ -42,7 +42,8 @@ public abstract class FDBTestBase {
     public static APIVersion getAPIVersion() {
         String apiVersionStr = System.getProperty(API_VERSION_PROPERTY);
         if (apiVersionStr == null) {
-            return APIVersion.getDefault();
+            return APIVersion.API_VERSION_7_1;
+            // return APIVersion.getDefault();
         }
         return APIVersion.fromVersionNumber(Integer.parseInt(apiVersionStr));
     }
