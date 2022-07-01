@@ -20,8 +20,8 @@
 
 package com.apple.foundationdb.record;
 
-import com.apple.foundationdb.annotation.API;
 import com.apple.foundationdb.Range;
+import com.apple.foundationdb.annotation.API;
 import com.apple.foundationdb.record.logging.LogMessageKeys;
 import com.apple.foundationdb.subspace.Subspace;
 import com.apple.foundationdb.tuple.ByteArrayUtil;
@@ -32,6 +32,7 @@ import com.apple.foundationdb.tuple.TupleHelpers;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
+import java.util.Iterator;
 
 /**
  * A range within a subspace specified by two {@link Tuple} endpoints.
@@ -156,6 +157,10 @@ public class TupleRange {
     @Nonnull
     @SuppressWarnings("PMD.UnusedNullCheckInEquals") // uses TupleHelpers::equals for efficiency reasons
     public TupleRange prepend(@Nonnull Tuple beginning) {
+        if (beginning.isEmpty()) {
+            return this;
+        }
+
         Tuple newLow;
         EndpointType newLowEndpoint;
         if (low == null) {
@@ -225,6 +230,92 @@ public class TupleRange {
     @Nonnull
     public static TupleRange prefixedBy(@Nonnull String prefixString) {
         return new TupleRange(Tuple.from(prefixString), Tuple.from(prefixString), EndpointType.PREFIX_STRING, EndpointType.PREFIX_STRING);
+    }
+
+    /**
+     * Determines whether the given {@link Tuple} is contained within this range. This is equivalent to
+     * finding the {@link Range} associated with this tuple range, and then checking to see if the given
+     * tuple serializes to a value within that {@code Range}.
+     *
+     * @param tuple the {@link Tuple} to check for range membership
+     * @return whether the given {@link Tuple} is in the specified range
+     */
+    public boolean contains(Tuple tuple) {
+        if (lowEndpoint == EndpointType.CONTINUATION || highEndpoint == EndpointType.CONTINUATION) {
+            Range r = toRange();
+            byte[] tupleBytes = tuple.pack();
+            return (r.begin == null || ByteArrayUtil.compareUnsigned(r.begin, tupleBytes) <= 0)
+                   && (r.end == null || ByteArrayUtil.compareUnsigned(r.end, tupleBytes) > 0);
+        } else {
+            return lowEndpointMatches(tuple) && highEndpointMatches(tuple);
+        }
+    }
+
+    private boolean lowEndpointMatches(Tuple tuple) {
+        if (low == null) {
+            return true;
+        }
+        switch (lowEndpoint) {
+            case TREE_START:
+                return true;
+            case RANGE_INCLUSIVE:
+                return TupleHelpers.compareRangeEndpoint(low, tuple) <= 0;
+            case RANGE_EXCLUSIVE:
+                return TupleHelpers.compareRangeEndpoint(low, tuple) < 0;
+            case PREFIX_STRING:
+                return matchesPrefixStringEndpoint(low, tuple);
+            case CONTINUATION:
+            case TREE_END:
+            default:
+                throw new RecordCoreException("nope");
+        }
+    }
+
+    private boolean highEndpointMatches(Tuple tuple) {
+        if (high == null) {
+            return true;
+        }
+        switch (highEndpoint) {
+            case TREE_END:
+                return true;
+            case RANGE_INCLUSIVE:
+                return TupleHelpers.compareRangeEndpoint(high, tuple) >= 0;
+            case RANGE_EXCLUSIVE:
+                return TupleHelpers.compareRangeEndpoint(high, tuple) > 0;
+            case PREFIX_STRING:
+                return matchesPrefixStringEndpoint(high, tuple);
+            case CONTINUATION:
+            case TREE_START:
+            default:
+                throw new RecordCoreException("nope");
+        }
+    }
+
+    private static boolean matchesPrefixStringEndpoint(Tuple endpoint, Tuple tuple) {
+        Iterator<Object> endpointItr = endpoint.iterator();
+        Iterator<Object> tupleItr = tuple.iterator();
+        while (endpointItr.hasNext()) {
+            Object endpointObj = endpointItr.next();
+            if (!tupleItr.hasNext()) {
+                return false;
+            }
+            Object tupleObj = tupleItr.next();
+            if (!endpointItr.hasNext()) {
+                // We are at the last element of the endpoint, which should be a string.
+                String endpointStr = endpointObj.toString();
+                if (!(tupleObj instanceof String)) {
+                    return false;
+                }
+                String tupleStr = tupleObj.toString();
+                return tupleStr.startsWith(endpointStr);
+            } else {
+                boolean objEquals = TupleHelpers.equals(Tuple.from(endpointObj), Tuple.from(tupleObj));
+                if (!objEquals) {
+                    return false;
+                }
+            }
+        }
+        return false;
     }
 
     /**

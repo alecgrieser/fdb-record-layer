@@ -26,6 +26,7 @@ import com.apple.foundationdb.annotation.API;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.math.BigInteger;
+import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -74,6 +75,66 @@ public class TupleHelpers {
             }
         }
         return t1Len - t2Len;
+    }
+
+    /**
+     * Compare a range endpoint tuple against a tuple that may or may not be in the range. This behaves
+     * differently from normal comparison in the way that prefixes are handled. Namely, that if the endpoint
+     * is a prefix of the tuple, then this will return 0 (indicating that the endpoint is equal to the tuple).
+     * Note that if the tuple is prefix of the endpoint, then this will return 1 (indicating that the tuple is
+     * greater than the endpoint), just like with normal lexicographic comparison.
+     *
+     * <p>
+     * Note that this kind of comparison is consistent with the way that tuple ranges within the Record
+     * Layer handle inclusive/exclusive endpoints, in that an "inclusive" range includes all values that are
+     * prefixed by the value, whereas an exclusive range excludes anything prefixed by the values. This
+     * behavior is consistent with the needed semantics to use tuple-based indexes to satisfy predicates.
+     * </p>
+     *
+     * @param endpoint an endpoint of a tuple range
+     * @param tuple a tuple to compare to the endpoint
+     * @return the value 0 if the tuple is equal to the endpoint or if the endpoint is a prefix of the tuple,
+     *     a negative value if the endpoint is less than the tuple, and a positive value if the endpoint is
+     *     greater than the tuple
+     */
+    @API(API.Status.INTERNAL)
+    public static int compareRangeEndpoint(@Nonnull Tuple endpoint, @Nonnull Tuple tuple) {
+        Iterator<Object> endpointItr = endpoint.iterator();
+        Iterator<Object> tupleItr = tuple.iterator();
+
+        while (endpointItr.hasNext()) {
+            if (!tupleItr.hasNext()) {
+                // The tuple is a prefix of endpoint. Return 1 to indicate that the endpoint is greater than the
+                // tuple
+                return 1;
+            }
+
+            // Check the items of both the endpoint and the tuple.
+            Object endpointObj = endpointItr.next();
+            Object tupleObj = tupleItr.next();
+
+            int comparison = TupleUtil.compareItems(endpointObj, tupleObj);
+            if (comparison != 0) {
+                return comparison;
+            }
+        }
+
+        // The endpoint is a prefix (or exactly matches) the tuple. Return 0 to indicate equality
+        return 0;
+    }
+
+    private static boolean isNestedTupleType(Object object) {
+        return object instanceof Tuple || object instanceof List;
+    }
+
+    private static Tuple toNestedTuple(Object object) {
+        if (object instanceof Tuple) {
+            return (Tuple) object;
+        } else if (object instanceof List<?>) {
+            return Tuple.fromList((List<?>) object);
+        } else {
+            throw new IllegalArgumentException("Cannot convert non-list type to Tuple");
+        }
     }
 
     /**
