@@ -51,6 +51,7 @@ import com.apple.foundationdb.record.metadata.expressions.KeyExpression;
 import com.apple.foundationdb.record.provider.common.RecordSerializationException;
 import com.apple.foundationdb.record.provider.common.RecordSerializer;
 import com.apple.foundationdb.record.provider.foundationdb.keyspace.KeySpacePath;
+import com.apple.foundationdb.record.provider.foundationdb.properties.RecordLayerPropertyStorage;
 import com.apple.foundationdb.record.query.RecordQuery;
 import com.apple.foundationdb.record.query.expressions.Comparisons;
 import com.apple.foundationdb.record.query.expressions.Query;
@@ -85,6 +86,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static com.apple.foundationdb.record.metadata.Key.Expressions.concat;
 import static com.apple.foundationdb.record.metadata.Key.Expressions.concatenateFields;
@@ -1222,4 +1224,60 @@ public class FDBRecordStoreTest extends FDBRecordStoreTestBase {
                 store -> store.clearHeaderUserField("field_name"));
     }
 
+    @Test
+    public void traceDeleteMutations() {
+        RecordMetaDataHook hook = metaDataBuilder -> {
+            metaDataBuilder.setSplitLongRecords(true);
+            metaDataBuilder.setStoreRecordVersions(true);
+        };
+
+        TestRecords1Proto.MySimpleRecord record1 = TestRecords1Proto.MySimpleRecord.newBuilder()
+                .setRecNo(1L)
+                .setNumValue3Indexed(42)
+                .setNumValue2(42)
+                .setStrValueIndexed("hello")
+                .build();
+        TestRecords1Proto.MySimpleRecord record2 = TestRecords1Proto.MySimpleRecord.newBuilder()
+                .setRecNo(2L)
+                .setNumValue3Indexed(48)
+                .setNumValue2(48)
+                .setStrValueIndexed("world")
+                .addAllRepeater(IntStream.range(1, 500_000).boxed().collect(Collectors.toList()))
+                .build();
+
+        try (FDBRecordContext context = openContext()) {
+            openSimpleRecordStore(context, hook);
+
+            recordStore.saveRecord(record1);
+            recordStore.saveRecord(record2);
+
+            commit(context);
+        }
+
+        FDBRecordContextConfig config = contextConfig(RecordLayerPropertyStorage.newBuilder())
+                .setTransactionId("traceUpdateMutations")
+                .setLogTransaction(true)
+                .build();
+        try (FDBRecordContext context = fdb.openContext(config)) {
+            openSimpleRecordStore(context, hook);
+
+            recordStore.saveRecord(record1.toBuilder().setNumValue3Indexed(43).build());
+            recordStore.saveRecord(record2.toBuilder().clearRepeater().build());
+
+            commit(context);
+        }
+
+        FDBRecordContextConfig config2 = contextConfig(RecordLayerPropertyStorage.newBuilder())
+                .setTransactionId("traceDeleteMutations")
+                .setLogTransaction(true)
+                .build();
+        try (FDBRecordContext context = fdb.openContext(config2)) {
+            openSimpleRecordStore(context, hook);
+
+            recordStore.deleteRecord(Tuple.from(record1.getRecNo()));
+            recordStore.deleteRecord(Tuple.from(record2.getRecNo()));
+
+            commit(context);
+        }
+    }
 }
