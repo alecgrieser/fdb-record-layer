@@ -63,6 +63,7 @@ public class RecordQueryPlannerConfiguration {
     private static final long DONT_DEFER_CROSS_PRODUCTS_MASK = 1L << 8;
     private static final long PLAN_OTHER_ATTEMPT_FULL_FILTER_MASK = 1L << 9;
     private static final long NORMALIZE_NESTED_FIELDS_MASK = 1L << 10;
+    private static final long OMIT_PRIMARY_KEY_IN_ORDERING_KEY_FOR_IN_UNION_MASK = 1L << 11;
 
     @Nonnull
     private final RecordPlannerConfigurationProto.PlannerConfiguration proto;
@@ -181,6 +182,10 @@ public class RecordQueryPlannerConfiguration {
 
     public boolean shouldOmitPrimaryKeyInUnionOrderingKey() {
         return flagSet(OMIT_PRIMARY_KEY_IN_UNION_ORDERING_KEY_MASK);
+    }
+
+    public boolean shouldOmitPrimaryKeyInOrderingKeyForInUnion() {
+        return flagSet(OMIT_PRIMARY_KEY_IN_ORDERING_KEY_FOR_IN_UNION_MASK);
     }
 
     /**
@@ -421,6 +426,12 @@ public class RecordQueryPlannerConfiguration {
         @Nonnull
         public Builder setOmitPrimaryKeyInUnionOrderingKey(boolean omitPrimaryKeyInUnionOrderingKey) {
             updateFlags(omitPrimaryKeyInUnionOrderingKey, OMIT_PRIMARY_KEY_IN_UNION_ORDERING_KEY_MASK);
+            return this;
+        }
+
+        @Nonnull
+        public Builder setOmitPrimaryKeyInOrderingKeyForInUnion(boolean omitPrimaryKeyInOrderingKeyForInUnion) {
+            updateFlags(omitPrimaryKeyInOrderingKeyForInUnion, OMIT_PRIMARY_KEY_IN_ORDERING_KEY_FOR_IN_UNION_MASK);
             return this;
         }
 

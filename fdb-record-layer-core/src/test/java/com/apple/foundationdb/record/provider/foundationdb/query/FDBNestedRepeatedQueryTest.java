@@ -99,9 +99,13 @@ import static com.apple.foundationdb.record.query.plan.cascades.matching.structu
 import static com.apple.foundationdb.record.query.plan.cascades.matching.structure.RecordQueryPlanMatchers.coveringIndexPlan;
 import static com.apple.foundationdb.record.query.plan.cascades.matching.structure.RecordQueryPlanMatchers.fetchFromPartialRecordPlan;
 import static com.apple.foundationdb.record.query.plan.cascades.matching.structure.RecordQueryPlanMatchers.filterPlan;
+import static com.apple.foundationdb.record.query.plan.cascades.matching.structure.RecordQueryPlanMatchers.inUnionComparisonKey;
+import static com.apple.foundationdb.record.query.plan.cascades.matching.structure.RecordQueryPlanMatchers.inUnionOnExpressionPlan;
 import static com.apple.foundationdb.record.query.plan.cascades.matching.structure.RecordQueryPlanMatchers.indexName;
 import static com.apple.foundationdb.record.query.plan.cascades.matching.structure.RecordQueryPlanMatchers.indexPlan;
 import static com.apple.foundationdb.record.query.plan.cascades.matching.structure.RecordQueryPlanMatchers.indexPlanOf;
+import static com.apple.foundationdb.record.query.plan.cascades.matching.structure.RecordQueryPlanMatchers.isNotReverse;
+import static com.apple.foundationdb.record.query.plan.cascades.matching.structure.RecordQueryPlanMatchers.isReverse;
 import static com.apple.foundationdb.record.query.plan.cascades.matching.structure.RecordQueryPlanMatchers.queryComponents;
 import static com.apple.foundationdb.record.query.plan.cascades.matching.structure.RecordQueryPlanMatchers.scanComparisons;
 import static com.apple.foundationdb.record.query.plan.cascades.matching.structure.RecordQueryPlanMatchers.unionOnExpressionPlan;
@@ -621,6 +625,108 @@ class FDBNestedRepeatedQueryTest extends FDBRecordStoreQueryTestBase {
                                 .set(otherParam, otherId)
                                 .set(k1Param, key1)
                                 .set(k2Param, key2)
+                                .build();
+                        final EvaluationContext evaluationContext = EvaluationContext.forBindings(bindings);
+                        final List<Pair<TestRecordsNestedMapProto.OuterRecord, TestRecordsNestedMapProto.MapRecord.Entry>> queried = plan.execute(recordStore, evaluationContext)
+                                .map(FDBQueriedRecord::getSyntheticRecord)
+                                .map(synthetic -> {
+                                    TestRecordsNestedMapProto.OuterRecord outer = TestRecordsNestedMapProto.OuterRecord.newBuilder()
+                                            .mergeFrom(synthetic.getConstituent(PARENT_CONSTITUENT).getRecord())
+                                            .build();
+                                    TestRecordsNestedMapProto.MapRecord.Entry entry = TestRecordsNestedMapProto.MapRecord.Entry.newBuilder()
+                                            .mergeFrom(synthetic.getConstituent("entry").getRecord())
+                                            .build();
+                                    return Pair.of(outer, entry);
+                                })
+                                .asList()
+                                .join();
+                        assertEquals(expected, queried);
+                    }
+                }
+            }
+        }
+    }
+
+    @ParameterizedTest(name = "inFilterOnKeyAndOrderByValue[reverse={0}]")
+    @BooleanSource
+    void inFilterOnKeyAndOrderByValue(boolean reverse) {
+        final Index unnestedOtherKeyValueIndex = new Index("unnestedOtherKeyValue",
+                concat(field(PARENT_CONSTITUENT).nest("other_id"), field("entry").nest(concatenateFields("key", "value"))));
+        final RecordMetaDataHook hook = addUnnestedType()
+                .andThen(metaData -> {
+                    final RecordTypeBuilder outerRecord = metaData.getRecordType("OuterRecord");
+                    outerRecord.setPrimaryKey(concatenateFields("other_id", "rec_id"));
+
+                    metaData.addIndex(OUTER_WITH_ENTRIES, unnestedOtherKeyValueIndex);
+                });
+        final List<TestRecordsNestedMapProto.OuterRecord> data = setUpData(hook);
+        final Set<Long> otherIds = data.stream().map(TestRecordsNestedMapProto.OuterRecord::getOtherId).collect(Collectors.toSet());
+        assertThat(otherIds, not(empty()));
+        final Set<String> keys = mapKeys(data);
+        assertThat(keys, not(empty()));
+
+        try (FDBRecordContext context = openContext()) {
+            createOrOpenMapStore(context, hook);
+
+            final String otherParam = "otherParam";
+            final String keyListParam = "keyListParam";
+            final RecordQuery query = RecordQuery.newBuilder()
+                    .setRecordType(OUTER_WITH_ENTRIES)
+                    .setFilter(
+                            Query.and(
+                                    Query.field(PARENT_CONSTITUENT).matches(
+                                            Query.field("other_id").equalsParameter(otherParam)),
+                                    Query.field("entry").matches(Query.field("key").in(keyListParam))
+                            )
+                    )
+                    .setSort(field("entry").nest("value"), reverse)
+                    .build();
+
+            planner.setConfiguration(planner.getConfiguration().asBuilder()
+                    .setOmitPrimaryKeyInOrderingKeyForInUnion(true)
+                    .setAttemptFailedInJoinAsUnionMaxSize(100)
+                    .build());
+            final RecordQueryPlan plan = planQuery(query);
+            assertEquals(reverse, plan.isReverse());
+            final List<KeyExpression> comparisonKeyComponents = ImmutableList.<KeyExpression>builder()
+                    .add(field("entry").nest("value"))
+                    .addAll(recordStore.getRecordMetaData().getSyntheticRecordType(OUTER_WITH_ENTRIES).getPrimaryKey().normalizeKeyForPositions())
+                    .build();
+            assertThat(comparisonKeyComponents, hasSize(4));
+            assertEquals(5, comparisonKeyComponents.stream().mapToInt(KeyExpression::getColumnSize).sum());
+            assertMatchesExactly(plan, inUnionOnExpressionPlan(indexPlan()
+                    .where(indexName(unnestedOtherKeyValueIndex.getName()))
+                    .and(scanComparisons(range("[EQUALS $" + otherParam + ", EQUALS $__in_key__0]")))
+                    .and(reverse ? isReverse() : isNotReverse())
+            ).where(inUnionComparisonKey(list(comparisonKeyComponents))));
+            assertEquals(reverse ? -1181713337 : -1181714298L, plan.planHash(CURRENT_LEGACY));
+            assertEquals(reverse ? 1959162892L : 1959341638L, plan.planHash(CURRENT_FOR_CONTINUATION));
+
+            for (long otherId : otherIds) {
+                for (String key1 : keys) {
+                    for (String key2 : keys) {
+                        final List<Pair<TestRecordsNestedMapProto.OuterRecord, TestRecordsNestedMapProto.MapRecord.Entry>> expected = data.stream()
+                                .filter(rec -> rec.getOtherId() == otherId)
+                                .flatMap(rec -> rec.getMap().getEntryList().stream()
+                                        .filter(entry -> entry.getKey().equals(key1) || entry.getKey().equals(key2))
+                                        .map(entry -> Pair.of(rec, entry)))
+                                .sorted((p1, p2) -> {
+                                    int comparison = p1.getRight().getValue().compareTo(p2.getRight().getValue());
+                                    if (comparison != 0) {
+                                        return reverse ? (comparison * -1) : comparison;
+                                    }
+                                    comparison = Long.compare(p1.getLeft().getRecId(), p2.getLeft().getRecId());
+                                    if (comparison != 0) {
+                                        return reverse ? (comparison * -1) : comparison;
+                                    }
+                                    comparison = Integer.compare(p1.getLeft().getMap().getEntryList().indexOf(p1.getRight()), p2.getLeft().getMap().getEntryList().indexOf(p2.getRight()));
+                                    return reverse ? (comparison * -1) : comparison;
+                                })
+                                .collect(Collectors.toList());
+
+                        final Bindings bindings = Bindings.newBuilder()
+                                .set(otherParam, otherId)
+                                .set(keyListParam, List.of(key1, key2))
                                 .build();
                         final EvaluationContext evaluationContext = EvaluationContext.forBindings(bindings);
                         final List<Pair<TestRecordsNestedMapProto.OuterRecord, TestRecordsNestedMapProto.MapRecord.Entry>> queried = plan.execute(recordStore, evaluationContext)
