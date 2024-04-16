@@ -63,7 +63,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.Message;
-import org.apache.commons.lang3.tuple.Pair;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
@@ -741,8 +740,8 @@ public class LucenePartitioner {
         final KeyExpression rootExpression = state.index.getRootExpression();
 
         if (! (rootExpression instanceof GroupingKeyExpression)) {
-            return processPartitionRebalancing(Tuple.from(), documentCount, logMessages).thenApply(result -> {
-                if (result.getLeft() > 0) {
+            return processPartitionRebalancing(Tuple.from(), documentCount, logMessages).thenApply(repartitionedCount -> {
+                if (repartitionedCount > 0) {
                     // we did something, repeat
                     return RecordCursorStartContinuation.START;
                 } else {
@@ -772,8 +771,8 @@ public class LucenePartitioner {
                 if (cursorResult.hasNext()) {
                     final Tuple groupingKey = Tuple.fromItems(cursorResult.get().getItems().subList(0, groupingCount));
                     return processPartitionRebalancing(groupingKey, documentCount, logMessages)
-                            .thenCompose(repartitionResult -> {
-                                if (repartitionResult.getLeft() > 0) {
+                            .thenCompose(repartitionedCount -> {
+                                if (repartitionedCount > 0) {
                                     // we did something, stop so we can create a new transaction
                                     return AsyncUtil.READY_FALSE;
                                 } else {
@@ -800,12 +799,10 @@ public class LucenePartitioner {
      * @param groupingKey grouping key
      * @param repartitionDocumentCount max number of documents to move in each transaction
      * @param logMessages {@link com.apple.foundationdb.record.provider.foundationdb.FDBDatabaseRunner} additional log messages
-     * @return {@code true} future if there is more repartitioning to be done in this group
+     * @return the number of documents repartitioned
      */
     @Nonnull
-    public CompletableFuture<Pair<Integer, Integer>> processPartitionRebalancing(@Nonnull final Tuple groupingKey,
-                                                                                 int repartitionDocumentCount,
-                                                                                 RepartitioningLogMessages logMessages) {
+    public CompletableFuture<Integer> processPartitionRebalancing(@Nonnull final Tuple groupingKey, int repartitionDocumentCount, RepartitioningLogMessages logMessages) {
         if (repartitionDocumentCount <= 0) {
             throw new IllegalArgumentException("number of documents to move can't be zero");
         }
@@ -840,14 +837,12 @@ public class LucenePartitioner {
                             .thenApply(movedCount -> {
                                 state.context.record(LuceneEvents.Events.LUCENE_REBALANCE_PARTITION, System.nanoTime() - startTimeNanos);
                                 state.context.recordSize(LuceneEvents.SizeEvents.LUCENE_REBALANCE_PARTITION_DOCS, movedCount);
-                                return Pair.of(
-                                        movedCount,
-                                        Math.max(partitionInfo.getCount() - movedCount - indexPartitionHighWatermark, 0));
+                                return movedCount;
                             });
                 }
             }
             // here: no partitions need re-balancing
-            return CompletableFuture.completedFuture(Pair.of(0, 0));
+            return CompletableFuture.completedFuture(0);
         });
     }
 
