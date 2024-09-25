@@ -196,7 +196,9 @@ public class RequestedOrdering {
             final var orderingPart = orderingParts.get(i);
             final var orderingValue = Objects.requireNonNull(pushedDownOrderingValues.get(i));
             final var rebasedOrderingValue = orderingValue.rebase(translationMap);
-            pushedDownOrderingPartsBuilder.add(new RequestedOrderingPart(rebasedOrderingValue, orderingPart.getSortOrder()));
+            if (rebasedOrderingValue.getCorrelatedTo().stream().allMatch(correlated -> correlated.equals(Quantifier.current()))) {
+                pushedDownOrderingPartsBuilder.add(new RequestedOrderingPart(rebasedOrderingValue, orderingPart.getSortOrder()));
+            }
         }
         return new RequestedOrdering(pushedDownOrderingPartsBuilder.build(), Distinctness.PRESERVE_DISTINCTNESS);
     }

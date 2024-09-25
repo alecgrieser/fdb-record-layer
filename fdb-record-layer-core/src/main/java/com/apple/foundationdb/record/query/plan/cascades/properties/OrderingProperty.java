@@ -480,13 +480,13 @@ public class OrderingProperty implements PlanProperty<Ordering> {
             final var outerCardinalities = CardinalitiesProperty.evaluate(flatMapPlan.getOuterQuantifier());
             final var outerMaxCardinality = outerCardinalities.getMaxCardinality();
             if (!outerMaxCardinality.isUnknown() && outerMaxCardinality.getCardinality() == 1L) {
-                // outer max cardinality is proven to be 1 row
+                // Outer max cardinality is proven to be 1 row. Just return the inner
                 return innerOrdering.pullUp(resultValue, AliasMap.ofAliases(flatMapPlan.getInnerQuantifier().getAlias(), Quantifier.current()), correlatedTo);
             }
 
             if (!outerOrdering.isDistinct()) {
                 // outer ordering is not distinct
-                return outerOrdering.pullUp(resultValue, AliasMap.ofAliases(flatMapPlan.getInnerQuantifier().getAlias(), Quantifier.current()), correlatedTo);
+                return outerOrdering.pullUp(resultValue, AliasMap.ofAliases(flatMapPlan.getOuterQuantifier().getAlias(), Quantifier.current()), correlatedTo);
             }
 
             //

@@ -149,7 +149,7 @@ public abstract class FDBRecordStoreTestBase extends FDBRecordStoreConcurrentTes
         return ByteString.copyFrom(bytes);
     }
 
-    public void openSimpleRecordStore(FDBRecordContext context) throws Exception {
+    public void openSimpleRecordStore(FDBRecordContext context) {
         openSimpleRecordStore(context, NO_HOOK);
     }
 
