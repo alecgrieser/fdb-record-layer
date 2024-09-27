@@ -26,15 +26,11 @@ import com.apple.foundationdb.record.metadata.Key;
 import com.apple.foundationdb.record.metadata.expressions.KeyExpression;
 import com.apple.foundationdb.record.provider.foundationdb.FDBRecordContext;
 import com.apple.foundationdb.record.query.expressions.Comparisons;
-import com.apple.foundationdb.record.query.plan.cascades.AliasMap;
 import com.apple.foundationdb.record.query.plan.cascades.CorrelationIdentifier;
 import com.apple.foundationdb.record.query.plan.cascades.GraphExpansion;
-import com.apple.foundationdb.record.query.plan.cascades.OrderingPart;
 import com.apple.foundationdb.record.query.plan.cascades.Quantifier;
 import com.apple.foundationdb.record.query.plan.cascades.Reference;
-import com.apple.foundationdb.record.query.plan.cascades.RequestedOrdering;
 import com.apple.foundationdb.record.query.plan.cascades.expressions.ExplodeExpression;
-import com.apple.foundationdb.record.query.plan.cascades.expressions.LogicalSortExpression;
 import com.apple.foundationdb.record.query.plan.cascades.predicates.ExistsPredicate;
 import com.apple.foundationdb.record.query.plan.cascades.predicates.NotPredicate;
 import com.apple.foundationdb.record.query.plan.cascades.predicates.QueryPredicate;
@@ -51,9 +47,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 
 import javax.annotation.Nonnull;
-import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static com.apple.foundationdb.record.query.plan.ScanComparisons.anyValueComparison;
 import static com.apple.foundationdb.record.query.plan.ScanComparisons.equalities;
@@ -115,7 +109,7 @@ public class FDBExistsQueryTest extends FDBRecordStoreQueryTestBase {
                         .addResultColumn(FDBQueryGraphTestHelpers.projectColumn(scanQun, "rec_no"))
                         .build()
                         .buildSelect()));
-                return Reference.of(unordered(resultQun));
+                return Reference.of(FDBQueryGraphTestHelpers.unordered(resultQun));
             });
 
             assertMatchesExactly(plan, mapPlan(coveringIndexPlan().where(indexPlanOf(
@@ -146,7 +140,7 @@ public class FDBExistsQueryTest extends FDBRecordStoreQueryTestBase {
                         .addResultColumn(FDBQueryGraphTestHelpers.projectColumn(scanQun, "rec_no"))
                         .build()
                         .buildSelect()));
-                return Reference.of(unordered(resultQun));
+                return Reference.of(FDBQueryGraphTestHelpers.unordered(resultQun));
             });
 
             assertMatchesExactly(plan, flatMapPlan(
@@ -180,7 +174,7 @@ public class FDBExistsQueryTest extends FDBRecordStoreQueryTestBase {
                         .addResultColumn(FDBQueryGraphTestHelpers.projectColumn(scanQun, "rec_no"))
                         .build()
                         .buildSelect()));
-                return Reference.of(unordered(resultQun));
+                return Reference.of(FDBQueryGraphTestHelpers.unordered(resultQun));
             }, bindings);
 
             assertMatchesExactly(plan, inComparandJoinPlan(mapPlan(coveringIndexPlan().where(indexPlanOf(
@@ -215,7 +209,7 @@ public class FDBExistsQueryTest extends FDBRecordStoreQueryTestBase {
                         .addResultColumn(FDBQueryGraphTestHelpers.projectColumn(scanQun, "num_value_3_indexed"))
                         .build()
                         .buildSelect()));
-                return Reference.of(orderedByFields(resultQun, descending, "num_value_3_indexed"));
+                return Reference.of(FDBQueryGraphTestHelpers.orderedByFields(resultQun, descending, "num_value_3_indexed"));
             });
 
             assertMatchesExactly(plan, mapPlan(coveringIndexPlan().where(indexPlanOf(
@@ -255,7 +249,7 @@ public class FDBExistsQueryTest extends FDBRecordStoreQueryTestBase {
                         .addResultColumn(FDBQueryGraphTestHelpers.projectColumn(scanQun, "num_value_3_indexed"))
                         .build()
                         .buildSelect()));
-                return Reference.of(orderedByFields(resultQun, descending, "num_value_3_indexed"));
+                return Reference.of(FDBQueryGraphTestHelpers.orderedByFields(resultQun, descending, "num_value_3_indexed"));
             }, bindings);
 
             assertMatchesExactly(plan, inUnionOnValuesPlan(mapPlan(coveringIndexPlan().where(indexPlanOf(
@@ -287,7 +281,7 @@ public class FDBExistsQueryTest extends FDBRecordStoreQueryTestBase {
                         .addResultColumn(FDBQueryGraphTestHelpers.projectColumn(scanQun, "rec_no"))
                         .build()
                         .buildSelect()));
-                return Reference.of(unordered(resultQun));
+                return Reference.of(FDBQueryGraphTestHelpers.unordered(resultQun));
             });
 
             // Does a full scan and then filters out values
@@ -322,7 +316,7 @@ public class FDBExistsQueryTest extends FDBRecordStoreQueryTestBase {
                         .addResultColumn(FDBQueryGraphTestHelpers.projectColumn(scanQun, "num_value_3_indexed"))
                         .build()
                         .buildSelect()));
-                return Reference.of(orderedByFields(resultQun, descending, "num_value_3_indexed"));
+                return Reference.of(FDBQueryGraphTestHelpers.orderedByFields(resultQun, descending, "num_value_3_indexed"));
             });
 
             // Does a full scan and then filters out values
@@ -349,20 +343,4 @@ public class FDBExistsQueryTest extends FDBRecordStoreQueryTestBase {
         return Quantifier.forEach(Reference.of(new ExplodeExpression(FieldValue.ofFieldNameAndFuseIfPossible(qun.getFlowedObjectValue(), repeatedField))));
     }
 
-    @Nonnull
-    private static LogicalSortExpression unordered(@Nonnull Quantifier qun) {
-        return new LogicalSortExpression(RequestedOrdering.preserve(), qun);
-    }
-
-    @Nonnull
-    private static LogicalSortExpression orderedByFields(@Nonnull Quantifier qun, boolean descending, String... fieldNames) {
-        final OrderingPart.RequestedSortOrder sortOrder = descending ? OrderingPart.RequestedSortOrder.DESCENDING : OrderingPart.RequestedSortOrder.ASCENDING;
-        final AliasMap aliasMap = AliasMap.ofAliases(qun.getAlias(), Quantifier.current());
-        final List<OrderingPart.RequestedOrderingPart> orderingParts = Arrays.stream(fieldNames)
-                .map(fieldName -> FieldValue.ofFieldNameAndFuseIfPossible(qun.getFlowedObjectValue(), fieldName))
-                .map(fieldValue -> fieldValue.rebase(aliasMap))
-                .map(fieldValue -> new OrderingPart.RequestedOrderingPart(fieldValue, sortOrder))
-                .collect(Collectors.toList());
-        return new LogicalSortExpression(RequestedOrdering.ofPrimitiveParts(orderingParts, RequestedOrdering.Distinctness.PRESERVE_DISTINCTNESS), qun);
-    }
 }

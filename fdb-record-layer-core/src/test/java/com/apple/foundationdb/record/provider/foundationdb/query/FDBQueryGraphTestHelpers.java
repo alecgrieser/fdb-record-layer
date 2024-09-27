@@ -27,9 +27,12 @@ import com.apple.foundationdb.record.RecordCursor;
 import com.apple.foundationdb.record.RecordMetaData;
 import com.apple.foundationdb.record.provider.foundationdb.FDBRecordStore;
 import com.apple.foundationdb.record.query.plan.cascades.AccessHints;
+import com.apple.foundationdb.record.query.plan.cascades.AliasMap;
 import com.apple.foundationdb.record.query.plan.cascades.Column;
+import com.apple.foundationdb.record.query.plan.cascades.OrderingPart;
 import com.apple.foundationdb.record.query.plan.cascades.Quantifier;
 import com.apple.foundationdb.record.query.plan.cascades.Reference;
+import com.apple.foundationdb.record.query.plan.cascades.RequestedOrdering;
 import com.apple.foundationdb.record.query.plan.cascades.expressions.FullUnorderedScanExpression;
 import com.apple.foundationdb.record.query.plan.cascades.expressions.LogicalSortExpression;
 import com.apple.foundationdb.record.query.plan.cascades.expressions.LogicalTypeFilterExpression;
@@ -50,9 +53,11 @@ import org.junit.jupiter.api.Tag;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -102,6 +107,23 @@ public class FDBQueryGraphTestHelpers extends FDBRecordStoreQueryTestBase {
     @Nonnull
     static <V extends Value> Column<V> resultColumn(@Nonnull V value, @Nullable String name) {
         return Column.of(Optional.ofNullable(name), value);
+    }
+
+    @Nonnull
+    static LogicalSortExpression unordered(@Nonnull Quantifier qun) {
+        return new LogicalSortExpression(RequestedOrdering.preserve(), qun);
+    }
+
+    @Nonnull
+    static LogicalSortExpression orderedByFields(@Nonnull Quantifier qun, boolean descending, String... fieldNames) {
+        final OrderingPart.RequestedSortOrder sortOrder = descending ? OrderingPart.RequestedSortOrder.DESCENDING : OrderingPart.RequestedSortOrder.ASCENDING;
+        final AliasMap aliasMap = AliasMap.ofAliases(qun.getAlias(), Quantifier.current());
+        final List<OrderingPart.RequestedOrderingPart> orderingParts = Arrays.stream(fieldNames)
+                .map(fieldName -> FieldValue.ofFieldNameAndFuseIfPossible(qun.getFlowedObjectValue(), fieldName))
+                .map(fieldValue -> fieldValue.rebase(aliasMap))
+                .map(fieldValue -> new OrderingPart.RequestedOrderingPart(fieldValue, sortOrder))
+                .collect(Collectors.toList());
+        return new LogicalSortExpression(RequestedOrdering.ofPrimitiveParts(orderingParts, RequestedOrdering.Distinctness.PRESERVE_DISTINCTNESS), qun);
     }
 
     static RecordCursor<QueryResult> executeCascades(FDBRecordStore store, RecordQueryPlan plan) {
