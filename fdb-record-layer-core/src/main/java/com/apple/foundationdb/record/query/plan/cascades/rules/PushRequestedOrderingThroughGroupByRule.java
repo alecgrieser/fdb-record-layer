@@ -98,12 +98,6 @@ public class PushRequestedOrderingThroughGroupByRule extends CascadesRule<GroupB
                 // Synthesize the requested ordering from above and the grouping columns
                 //
 
-                //
-                // Push the requested ordering through the result value. We need to do that in any case.
-                //
-                final var pushedRequestedOrdering =
-                        requestedOrdering.pushDown(resultValue, innerQuantifier.getAlias(), AliasMap.emptyMap(), correlatedTo);
-
                 if (groupingValue == null || groupingValue.isConstant()) {
                     //
                     // No grouping or constant grouping, there is only 0-1 record(s), and that can naturally be
@@ -128,6 +122,12 @@ public class PushRequestedOrderingThroughGroupByRule extends CascadesRule<GroupB
                     // expression by a constraint push, and 'required...' for the ordering imposed by the grouping
                     // columns of this expression.
                     //
+
+                    //
+                    // Push the requested ordering through the result value
+                    //
+                    final var pushedRequestedOrdering =
+                            requestedOrdering.pushDown(resultValue, innerQuantifier.getAlias(), AliasMap.emptyMap(), correlatedTo);
 
                     final var currentGroupingValue =
                             groupingValue.rebase(AliasMap.ofAliases(innerQuantifier.getAlias(), Quantifier.current()));

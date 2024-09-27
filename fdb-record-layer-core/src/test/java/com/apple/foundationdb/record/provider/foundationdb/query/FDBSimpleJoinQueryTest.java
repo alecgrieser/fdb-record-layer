@@ -30,11 +30,14 @@ import com.apple.foundationdb.record.query.RecordQuery;
 import com.apple.foundationdb.record.query.expressions.Comparisons;
 import com.apple.foundationdb.record.query.expressions.Query;
 import com.apple.foundationdb.record.query.plan.cascades.Column;
+import com.apple.foundationdb.record.query.plan.cascades.CorrelationIdentifier;
 import com.apple.foundationdb.record.query.plan.cascades.GraphExpansion;
 import com.apple.foundationdb.record.query.plan.cascades.Quantifier;
 import com.apple.foundationdb.record.query.plan.cascades.Reference;
 import com.apple.foundationdb.record.query.plan.cascades.expressions.LogicalSortExpression;
 import com.apple.foundationdb.record.query.plan.cascades.matching.structure.BindingMatcher;
+import com.apple.foundationdb.record.query.plan.cascades.typing.Type;
+import com.apple.foundationdb.record.query.plan.cascades.values.ConstantObjectValue;
 import com.apple.foundationdb.record.query.plan.cascades.values.FieldValue;
 import com.apple.foundationdb.record.query.plan.plans.RecordQueryLoadByKeysPlan;
 import com.apple.foundationdb.record.query.plan.plans.RecordQueryPlan;
@@ -44,6 +47,7 @@ import com.google.protobuf.Message;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -210,7 +214,9 @@ public class FDBSimpleJoinQueryTest extends FDBRecordStoreQueryTestBase {
                 final var childTypeQun = FDBQueryGraphTestHelpers.fullTypeScan(recordStore.getRecordMetaData(), "MyChildRecord");
 
                 // Equivalent to something like:
-                //   SELECT c.str_value FROM MyParentRecord p, MyChildRecord c WHERE p.str_value_indexed = "even" AND p.rec_no = c.parent_rec_no
+                //   SELECT p.rec_no AS parent_rec_no, c.rec_no AS child_rec_no, c.str_value
+                //       FROM MyParentRecord p, MyChildRecord c
+                //       WHERE p.str_value_indexed = "even" AND p.rec_no = c.parent_rec_no
                 final var selectQun = Quantifier.forEach(Reference.of(GraphExpansion.builder()
                         .addQuantifier(parentTypeQun)
                         .addQuantifier(childTypeQun)
@@ -270,6 +276,57 @@ public class FDBSimpleJoinQueryTest extends FDBRecordStoreQueryTestBase {
                     .asList()
                     .join();
             assertThat(results, joinOrdering.resultMatcher);
+        }
+    }
+
+    @DualPlannerTest(planner = DualPlannerTest.Planner.CASCADES)
+    @Disabled
+    void findChildrenPerParent() {
+        Assumptions.assumeTrue(useCascadesPlanner);
+        createJoinRecords(false);
+        try (FDBRecordContext context = openContext()) {
+            openJoinRecordStore(context);
+
+            final CorrelationIdentifier constantId = Quantifier.uniqueID();
+            final ConstantObjectValue cov = ConstantObjectValue.of(constantId, "0", new Type.Array(false, Type.primitiveType(Type.TypeCode.LONG, false)));
+
+            final RecordQueryPlan plan = planGraph(() -> {
+                final var parentTypeQun = FDBQueryGraphTestHelpers.fullTypeScan(recordStore.getRecordMetaData(), "MyParentRecord");
+                final var childTypeQun = FDBQueryGraphTestHelpers.fullTypeScan(recordStore.getRecordMetaData(), "MyChildRecord");
+
+                // Equivalent to something like:
+                //   SELECT p.rec_no AS parent_rec_no, c.rec_no AS child_rec_no, c.str_value
+                //      FROM MyParentRecord p, MyChildRecord c
+                //      WHERE p.rec_no IN ? AND p.rec_no = c.parent_rec_no
+                final var selectQun = Quantifier.forEach(Reference.of(GraphExpansion.builder()
+                        .addQuantifier(parentTypeQun)
+                        .addQuantifier(childTypeQun)
+                        .addPredicate(FieldValue.ofFieldName(parentTypeQun.getFlowedObjectValue(), "rec_no")
+                                .withComparison(new Comparisons.ValueComparison(Comparisons.Type.IN, cov)))
+                        .addPredicate(FieldValue.ofFieldName(childTypeQun.getFlowedObjectValue(), "parent_rec_no")
+                                .withComparison(new Comparisons.ValueComparison(Comparisons.Type.EQUALS, FieldValue.ofFieldName(parentTypeQun.getFlowedObjectValue(), "rec_no"))))
+                        .addResultColumn(Column.of(Optional.of("parent_rec_no"), FieldValue.ofFieldName(parentTypeQun.getFlowedObjectValue(), "rec_no")))
+                        .addResultColumn(Column.of(Optional.of("child_rec_no"), FieldValue.ofFieldName(parentTypeQun.getFlowedObjectValue(), "rec_no")))
+                        .addResultColumn(FDBQueryGraphTestHelpers.projectColumn(childTypeQun.getFlowedObjectValue(), "str_value"))
+                        .build()
+                        .buildSelect()));
+                return Reference.of(FDBQueryGraphTestHelpers.unordered(selectQun));
+            }, constantBindings(cov, List.of("1L", "2L", "3L")));
+
+            assertMatches(plan, flatMapPlan(
+                    typeFilterPlan(scanComparisons(unbounded()))
+                            .where(recordTypes(only(equalsObject("MyParentRecord")))),
+                    fetchFromPartialRecordPlan(
+                            predicatesFilterPlan(
+                                    coveringIndexPlan()
+                                            .where(indexPlanOf(
+                                                    indexPlan()
+                                                            .where(indexName("MyChildRecord$parent_rec_no"))
+                                                            .and(scanComparisons(equalities(only(anyValueComparison()))))
+                                            ))
+                            )
+                    )
+            ));
         }
     }
 
