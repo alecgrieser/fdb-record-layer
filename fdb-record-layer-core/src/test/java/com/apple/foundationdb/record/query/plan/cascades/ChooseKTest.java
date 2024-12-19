@@ -207,12 +207,12 @@ public class ChooseKTest {
 
     @Nonnull
     static Stream<Arguments> checkNChooseK() {
-        // Compute all for n < 10, k < n
+        // Compute all for n < 10, 0 <= k <= n
         Stream<Arguments> smallNK = IntStream.range(0, 10)
                 .boxed()
                 .flatMap(n -> IntStream.range(0, n + 1).boxed()
                         .map(k -> Arguments.of(n, k)));
-        // Check a smattering of elements where 10 <= n < 20 and n < k,
+        // Check a smattering of elements where 10 <= n < 20 and 0 <= k <= n,
         // If randomized tests are disabled, this will be the empty set.
         Stream<Arguments> randomNK = RandomizedTestUtils.randomArguments(r -> {
             int n = r.nextInt(10) + 10;
