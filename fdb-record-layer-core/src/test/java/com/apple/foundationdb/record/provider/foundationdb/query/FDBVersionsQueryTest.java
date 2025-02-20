@@ -21,6 +21,7 @@
 package com.apple.foundationdb.record.provider.foundationdb.query;
 
 import com.apple.foundationdb.record.EvaluationContext;
+import com.apple.foundationdb.record.PlanSerializationContext;
 import com.apple.foundationdb.record.RecordCoreException;
 import com.apple.foundationdb.record.RecordCursor;
 import com.apple.foundationdb.record.RecordCursorResult;
@@ -30,6 +31,7 @@ import com.apple.foundationdb.record.metadata.Index;
 import com.apple.foundationdb.record.metadata.IndexTypes;
 import com.apple.foundationdb.record.metadata.RecordType;
 import com.apple.foundationdb.record.metadata.RecordTypeBuilder;
+import com.apple.foundationdb.record.planprotos.PRecordQueryPlan;
 import com.apple.foundationdb.record.provider.common.RecordSerializer;
 import com.apple.foundationdb.record.provider.common.StoreTimer;
 import com.apple.foundationdb.record.provider.foundationdb.FDBQueriedRecord;
@@ -45,9 +47,9 @@ import com.apple.foundationdb.record.query.expressions.Query;
 import com.apple.foundationdb.record.query.plan.RecordQueryPlanner;
 import com.apple.foundationdb.record.query.plan.cascades.AliasMap;
 import com.apple.foundationdb.record.query.plan.cascades.CascadesPlanner;
-import com.apple.foundationdb.record.query.plan.cascades.Reference;
 import com.apple.foundationdb.record.query.plan.cascades.GraphExpansion;
 import com.apple.foundationdb.record.query.plan.cascades.Quantifier;
+import com.apple.foundationdb.record.query.plan.cascades.Reference;
 import com.apple.foundationdb.record.query.plan.cascades.expressions.LogicalSortExpression;
 import com.apple.foundationdb.record.query.plan.cascades.matching.structure.BindingMatcher;
 import com.apple.foundationdb.record.query.plan.cascades.matching.structure.PrimitiveMatchers;
@@ -58,11 +60,18 @@ import com.apple.foundationdb.record.query.plan.cascades.values.VersionValue;
 import com.apple.foundationdb.record.query.plan.plans.QueryResult;
 import com.apple.foundationdb.record.query.plan.plans.RecordQueryIndexPlan;
 import com.apple.foundationdb.record.query.plan.plans.RecordQueryPlan;
+import com.apple.foundationdb.tuple.ByteArrayUtil2;
 import com.apple.foundationdb.tuple.Tuple;
 import com.apple.test.Tags;
 import com.google.protobuf.ByteString;
+import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.Message;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -74,6 +83,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static com.apple.foundationdb.record.metadata.Key.Expressions.concat;
 import static com.apple.foundationdb.record.metadata.Key.Expressions.field;
@@ -106,6 +116,7 @@ import static com.apple.foundationdb.record.query.plan.cascades.matching.structu
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -128,6 +139,43 @@ public class FDBVersionsQueryTest extends FDBRecordStoreQueryTestBase {
         metaDataBuilder.addIndex(simple, VERSION_INDEX);
         metaDataBuilder.addIndex(simple, VERSION_BY_NUM_VALUE_2_INDEX);
     };
+
+    @Nonnull
+    private static final ByteString PLAN_4_0_559_0 = ByteString.fromHex(
+            "9A019E030A84020A02713212FD01080012F8015AF5010A0C76657273696F6E496E646578120E1A0C0A067265635F6E6F1001" +
+                    "18011A10120E0A0A0A0842595F56414C55451200200128013000380042AE0132AB010800180122120A060A04080910011206" +
+                    "7265635F6E6F1801221D0A060A04080A100112117374725F76616C75655F696E64657865641802221C0A060A040808100112" +
+                    "106E756D5F76616C75655F756E69717565180322170A060A0408081001120B6E756D5F76616C75655F321804221F0A060A04" +
+                    "0808100112136E756D5F76616C75655F335F696E64657865641805221A0A0C420A10001A060A040808100012087265706561" +
+                    "74657218064A0A0A081A060A02080010011294018A0290010A2F322D0801180022130A060A04080B1001120776657273696F" +
+                    "6E180122120A060A040809100112066E756D6265721802121E0A130A060A04080B1001120776657273696F6E18011207B202" +
+                    "040A027132123D0A120A060A040809100112066E756D6265721802122762250A0DF2010A0A02713212043202080012140A12" +
+                    "0A067265635F6E6F10001A060A0408091001"
+    );
+    @Nonnull
+    private static final ByteString PLAN_4_0_564_0 = ByteString.fromHex(
+            "9A01AD030A84020A02713212FD01080012F8015AF5010A0C76657273696F6E496E646578120E1A0C0A067265635F6E6F1001" +
+                    "18011A10120E0A0A0A0842595F56414C55451200200128013000380042AE0132AB010800180022120A060A04080910011206" +
+                    "7265635F6E6F1801221D0A060A04080A100112117374725F76616C75655F696E64657865641802221C0A060A040808100112" +
+                    "106E756D5F76616C75655F756E69717565180322170A060A0408081001120B6E756D5F76616C75655F321804221F0A060A04" +
+                    "0808100112136E756D5F76616C75655F335F696E64657865641805221A0A0C420A10001A060A040808100012087265706561" +
+                    "74657218064A0A0A081A060A020800100112A3018A029F010A2F322D0801180022130A060A04080B1001120776657273696F" +
+                    "6E180122120A060A040809100112066E756D6265721802122D0A130A060A04080B1001120776657273696F6E18011216B202" +
+                    "130A027132120DF2020A0A027132120432020800123D0A120A060A040809100112066E756D6265721802122762250A0DF201" +
+                    "0A0A02713212043202080012140A120A067265635F6E6F10001A060A0408091001"
+    );
+    @Nonnull
+    private static final ByteString PLAN_4_1_9_0 = ByteString.fromHex(
+            "9A019E030A84020A02713212FD01080012F8015AF5010A0C76657273696F6E496E646578120E1A0C0A067265635F6E6F1001" +
+                    "18011A10120E0A0A0A0842595F56414C55451200200128013000380042AE0132AB010800180022120A060A04080910011206" +
+                    "7265635F6E6F1801221D0A060A04080A100112117374725F76616C75655F696E64657865641802221C0A060A040808100112" +
+                    "106E756D5F76616C75655F756E69717565180322170A060A0408081001120B6E756D5F76616C75655F321804221F0A060A04" +
+                    "0808100112136E756D5F76616C75655F335F696E64657865641805221A0A0C420A10001A060A040808100012087265706561" +
+                    "74657218064A0A0A081A060A02080010011294018A0290010A2F322D0801180022130A060A04080B1001120776657273696F" +
+                    "6E180122120A060A040809100112066E756D6265721802121E0A130A060A04080B1001120776657273696F6E18011207B202" +
+                    "040A027132123D0A120A060A040809100112066E756D6265721802122762250A0DF2010A0A02713212043202080012140A12" +
+                    "0A067265635F6E6F10001A060A0408091001"
+    );
 
     private void openStore(FDBRecordContext context) {
         openSimpleRecordStore(context, VERSIONS_HOOK);
@@ -608,6 +656,126 @@ public class FDBVersionsQueryTest extends FDBRecordStoreQueryTestBase {
                     actualNumbers.add(number);
                 }
                 assertEquals(expectedNumbers, actualNumbers);
+            }
+        }
+    }
+
+    private ByteString generateSerializedPlan() {
+        try (FDBRecordContext context = openContext()) {
+            openStore(context);
+
+            // Plan a query approximating:
+            //    SELECT recordVersion(MySimpleRecord) AS version, MySimpleRecord.rec_no AS number FROM MySimpleRecord ORDER BY version ASC
+            RecordQueryPlan plan = ((CascadesPlanner)planner).planGraph(() -> {
+                var qun = fullTypeScan(recordStore.getRecordMetaData(), "MySimpleRecord");
+
+                final var graphExpansionBuilder = GraphExpansion.builder();
+                graphExpansionBuilder.addQuantifier(qun);
+
+                var recNoValue = FieldValue.ofFieldName(qun.getFlowedObjectValue(), "rec_no");
+                var versionValue = new VersionValue(QuantifiedRecordValue.of(qun));
+
+                graphExpansionBuilder.addResultColumn(resultColumn(versionValue, "version"));
+                graphExpansionBuilder.addResultColumn(resultColumn(recNoValue, "number"));
+
+                var select = Quantifier.forEach(Reference.of(graphExpansionBuilder.build().buildSelect()));
+
+                AliasMap aliasMap = AliasMap.ofAliases(select.getAlias(), Quantifier.current());
+                return Reference.of(sortExpression(List.of(FieldValue.ofFieldName(select.getFlowedObjectValue(), "version").rebase(aliasMap)), false, select));
+            }, Optional.empty(), IndexQueryabilityFilter.DEFAULT, EvaluationContext.empty()).getPlan();
+
+            assertMatchesExactly(plan, mapPlan(
+                    indexPlan()
+                            .where(indexName("versionIndex"))
+                            .and(scanComparisons(unbounded()))
+            )
+                    .where(mapResult(recordConstructorValue(exactly(versionValue(), fieldValueWithFieldNames("rec_no"))))));
+
+            PlanSerializationContext serializationContext = PlanSerializationContext.newForCurrentMode();
+            PRecordQueryPlan planProto = plan.toRecordQueryPlanProto(serializationContext);
+            assertThat(planProto, instanceOf(PRecordQueryPlan.class));
+            return planProto.toByteString();
+        }
+    }
+
+    @DualPlannerTest(planner = DualPlannerTest.Planner.CASCADES)
+    @Disabled("Utility used to generate additional serialized plans")
+    void printPlanHexString() {
+        ByteString serializedPlan = generateSerializedPlan();
+        String hexPlan = ByteArrayUtil2.toHexString(serializedPlan.toByteArray());
+
+        int curr = 0;
+        while (curr < hexPlan.length()) {
+            int end = Math.min(curr + 100, hexPlan.length());
+            System.out.println("       \"" + hexPlan.substring(curr, end) + "\"" + ((end < hexPlan.length()) ? " +" : ""));
+            curr = end;
+        }
+    }
+
+    static Stream<Arguments> runDeserializedPlan() {
+        // Once we no longer want to support reading plans from these older versions, we can
+        // remove the older test cases
+        return Stream.of(
+                Arguments.of("4.0.559.0", PLAN_4_0_559_0),
+                Arguments.of("4.0.564.0", PLAN_4_0_564_0),
+                Arguments.of("4.1.9.0", PLAN_4_1_9_0),
+                Arguments.of("current", ByteString.EMPTY)
+        );
+    }
+
+    /**
+     * Test for making sure serialized plans can be successfully run from older versions.
+     * To generate a new test case, run {@link #printPlanHexString()} and copy the printed
+     * hex string to a static variable. Then, update the list of test cases in
+     * {@link #runDeserializedPlan()} with the new plan.
+     *
+     * @param codeVersion Record Layer version in which the plan was generated (for logging)
+     * @param serializedPlan the plan to deserialize and run
+     * @throws InvalidProtocolBufferException if deserialization fails
+     */
+    @DualPlannerTest(planner = DualPlannerTest.Planner.CASCADES)
+    @ParameterizedTest(name = "runDeserializedPlan[codeVersion={0}]")
+    @MethodSource
+    void runDeserializedPlan(String codeVersion, ByteString serializedPlan) throws InvalidProtocolBufferException {
+        Assumptions.assumeTrue(useCascadesPlanner);
+        if (serializedPlan.isEmpty()) {
+            // To test the current version, generate a serialized plan of what we currently produce
+            serializedPlan = generateSerializedPlan();
+        }
+
+        PRecordQueryPlan planProto = PRecordQueryPlan.parseFrom(serializedPlan);
+        RecordQueryPlan plan = RecordQueryPlan.fromRecordQueryPlanProto(PlanSerializationContext.newForCurrentMode(), planProto);
+
+        assertMatchesExactly(plan, mapPlan(
+                indexPlan()
+                        .where(indexName("versionIndex"))
+                        .and(scanComparisons(unbounded()))
+        ).where(mapResult(recordConstructorValue(exactly(versionValue(), fieldValueWithFieldNames("rec_no"))))));
+
+        List<FDBStoredRecord<MySimpleRecord>> records = populateRecords();
+        FDBRecordVersion previousVersion = null;
+        try (FDBRecordContext context = openContext()) {
+            openStore(context);
+            try (RecordCursor<QueryResult> cursor = executeCascades(recordStore, plan)) {
+                for (RecordCursorResult<QueryResult> result = cursor.getNext(); result.hasNext(); result = cursor.getNext()) {
+                    QueryResult underlying = Objects.requireNonNull(result.get());
+                    // Make sure that the version is serialized into the RecordConstructor as bytes correctly
+                    ByteString versionObj = getField(underlying, ByteString.class, "version");
+                    assertNotNull(versionObj);
+                    FDBRecordVersion version = FDBRecordVersion.fromBytes(versionObj.toByteArray(), false);
+                    if (previousVersion != null) {
+                        assertThat(version, greaterThan(previousVersion));
+                    }
+                    long number = Objects.requireNonNull(getField(underlying, Long.class, "number"));
+                    long expectedRecNo = records.stream()
+                            .filter(rec -> version.equals(rec.getVersion()))
+                            .findFirst()
+                            .map(rec -> rec.getRecord().getRecNo())
+                            .orElse(-1L);
+                    assertEquals(expectedRecNo, number);
+
+                    previousVersion = version;
+                }
             }
         }
     }
