@@ -1,7 +1,7 @@
 ÿ
 S
 	unnamed-4FEXPLAIN select count(*) from "TEMPLATES" where template_name = 'TEMP1'Ä
-Ëè∂”V ´†n(0»™8!@ÀSCAN(<,>) | TFILTER TEMPLATES | FILTER _.TEMPLATE_NAME EQUALS promote(@c11 AS STRING) | MAP (_ AS _0) | AGG (count_star(*) AS _0) | ON EMPTY NULL | MAP (coalesce_long(_._0._0, promote(0l AS LONG)) AS _0)ïdigraph G {
+ñÈØ\ îöM(0„˜8!@ÀSCAN(<,>) | TFILTER TEMPLATES | FILTER _.TEMPLATE_NAME EQUALS promote(@c11 AS STRING) | MAP (_ AS _0) | AGG (count_star(*) AS _0) | ON EMPTY NULL | MAP (coalesce_long(_._0._0, promote(0l AS LONG)) AS _0)ïdigraph G {
   fontname=courier;
   rankdir=BT;
   splines=polyline;
@@ -20,11 +20,11 @@ S
   7 -> 6 [ label=<&nbsp;q24> label="q24" color="gray20" style="bold" fontname="courier" fontsize="8" arrowhead="normal" arrowtail="none" dir="both" ];
   8 -> 7 [ color="gray20" style="solid" fontname="courier" fontsize="8" arrowhead="normal" arrowtail="none" dir="both" ];
   2 -> 1 [ label=<&nbsp;q6> label="q6" color="gray20" style="bold" fontname="courier" fontsize="8" arrowhead="normal" arrowtail="none" dir="both" ];
-}…
+} 
 T
 
-unnamed-10FEXPLAIN select count(*) from "DATABASES" where database_id = '/FRL/DB'
-Ùè°‰] º∞}(0≠Ò8!@…SCAN(<,>) | TFILTER DATABASES | FILTER _.DATABASE_ID EQUALS promote(@c11 AS STRING) | MAP (_ AS _0) | AGG (count_star(*) AS _0) | ON EMPTY NULL | MAP (coalesce_long(_._0._0, promote(0l AS LONG)) AS _0)ádigraph G {
+unnamed-10FEXPLAIN select count(*) from "DATABASES" where database_id = '/FRL/DB'Ò
+¸à≠∂c ”Îø(0πÊ8!@…SCAN(<,>) | TFILTER DATABASES | FILTER _.DATABASE_ID EQUALS promote(@c11 AS STRING) | MAP (_ AS _0) | AGG (count_star(*) AS _0) | ON EMPTY NULL | MAP (coalesce_long(_._0._0, promote(0l AS LONG)) AS _0)ádigraph G {
   fontname=courier;
   rankdir=BT;
   splines=polyline;
@@ -47,7 +47,7 @@ unnamed-10FEXPLAIN select count(*) from "DATABASES" where database_id = '/FRL/D
 R
 
 unnamed-20DEXPLAIN select count(*) from "SCHEMAS" where database_id = '/FRL/DB'¿
-Ç¥–⁄ö ƒÅï(*0Ìê8L@∂COVERING(TEMPLATES_VALUE_INDEX <,> -> [DATABASE_ID: KEY[2], SCHEMA_NAME: KEY[3], TEMPLATE_NAME: KEY[0], TEMPLATE_VERSION: KEY[1]]) | FILTER _.DATABASE_ID EQUALS promote(@c11 AS STRING) | FETCH | MAP (_ AS _0) | AGG (count_star(*) AS _0) | ON EMPTY NULL | MAP (coalesce_long(_._0._0, promote(0l AS LONG)) AS _0)Ëdigraph G {
+ä‹Áë† ŸÖƒ(*0‹≠8L@∂COVERING(TEMPLATES_VALUE_INDEX <,> -> [DATABASE_ID: KEY[2], SCHEMA_NAME: KEY[3], TEMPLATE_NAME: KEY[0], TEMPLATE_VERSION: KEY[1]]) | FILTER _.DATABASE_ID EQUALS promote(@c11 AS STRING) | FETCH | MAP (_ AS _0) | AGG (count_star(*) AS _0) | ON EMPTY NULL | MAP (coalesce_long(_._0._0, promote(0l AS LONG)) AS _0)Ëdigraph G {
   fontname=courier;
   rankdir=BT;
   splines=polyline;
