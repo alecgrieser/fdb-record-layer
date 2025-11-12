@@ -222,6 +222,11 @@ public class RecursiveUnionExpression extends AbstractRelationalExpressionWithCh
         return recursiveStateQuantifier;
     }
 
+    @Nonnull
+    public TraversalStrategy getTraversalStrategy() {
+        return traversalStrategy;
+    }
+
     public boolean preOrderTraversalAllowed() {
         return traversalStrategy == TraversalStrategy.ANY || traversalStrategy == TraversalStrategy.PREORDER;
     }

@@ -224,6 +224,8 @@ public interface Type extends Narrowable<Type>, PlanSerializable {
     @Nonnull
     Type withNullability(boolean newIsNullable);
 
+    <T> T visit(TypeVisitor<T> visitor);
+
     @Nonnull
     default Type overrideIfNullable(boolean shouldBeNullable) {
         if (shouldBeNullable && !isNullable()) {
@@ -1019,6 +1021,11 @@ public interface Type extends Narrowable<Type>, PlanSerializable {
         }
 
         @Override
+        public <T> T visit(final TypeVisitor<T> visitor) {
+            return visitor.visit(this);
+        }
+
+        @Override
         public void addProtoField(@Nonnull final TypeRepository.Builder typeRepositoryBuilder,
                                   @Nonnull final DescriptorProto.Builder descriptorBuilder,
                                   final int fieldNumber,
@@ -1166,6 +1173,11 @@ public interface Type extends Narrowable<Type>, PlanSerializable {
             return new ExplainTokens().addKeyword("NULL");
         }
 
+        @Override
+        public <T> T visit(final TypeVisitor<T> visitor) {
+            return visitor.visit(this);
+        }
+
         @Nonnull
         @Override
         public PNullType toProto(@Nonnull final PlanSerializationContext serializationContext) {
@@ -1224,6 +1236,11 @@ public interface Type extends Narrowable<Type>, PlanSerializable {
             this.isNullable = isNullable;
             this.precision = precision;
             this.dimensions = dimensions;
+        }
+
+        @Override
+        public <T> T visit(final TypeVisitor<T> visitor) {
+            return visitor.visit(this);
         }
 
         @Nonnull
@@ -1386,6 +1403,11 @@ public interface Type extends Narrowable<Type>, PlanSerializable {
             return false;
         }
 
+        @Override
+        public <T> T visit(final TypeVisitor<T> visitor) {
+            return visitor.visit(this);
+        }
+
         @Nonnull
         @Override
         public Type withNullability(final boolean newIsNullable) {
@@ -1502,6 +1524,11 @@ public interface Type extends Narrowable<Type>, PlanSerializable {
         public Any withNullability(final boolean newIsNullable) {
             Verify.verify(newIsNullable);
             return this;
+        }
+
+        @Override
+        public <T> T visit(final TypeVisitor<T> visitor) {
+            return visitor.visit(this);
         }
 
         /**
@@ -1637,6 +1664,11 @@ public interface Type extends Narrowable<Type>, PlanSerializable {
             } else {
                 return new AnyRecord(newIsNullable);
             }
+        }
+
+        @Override
+        public <T> T visit(final TypeVisitor<T> visitor) {
+            return visitor.visit(this);
         }
 
         @Override
@@ -1790,6 +1822,11 @@ public interface Type extends Narrowable<Type>, PlanSerializable {
         @Override
         public Enum withNullability(final boolean newIsNullable) {
             return new Enum(newIsNullable, enumValues, name);
+        }
+
+        @Override
+        public <T> T visit(final TypeVisitor<T> visitor) {
+            return visitor.visit(this);
         }
 
         @Nullable
@@ -2110,6 +2147,11 @@ public interface Type extends Narrowable<Type>, PlanSerializable {
                 return this;
             }
             return new Record(name, newIsNullable, fields);
+        }
+
+        @Override
+        public <T> T visit(final TypeVisitor<T> visitor) {
+            return visitor.visit(this);
         }
 
         @Nonnull
@@ -2825,6 +2867,11 @@ public interface Type extends Narrowable<Type>, PlanSerializable {
             return this;
         }
 
+        @Override
+        public <T> T visit(final TypeVisitor<T> visitor) {
+            return visitor.visit(this);
+        }
+
         /**
          * Returns the values {@link Type}.
          * @return The values {@link Type}.
@@ -3048,6 +3095,11 @@ public interface Type extends Narrowable<Type>, PlanSerializable {
             return new Array(isNullable(), elementType);
         }
 
+        @Override
+        public <T> T visit(final TypeVisitor<T> visitor) {
+            return visitor.visit(this);
+        }
+
         /**
          * Checks whether the array type is erased or not.
          *
@@ -3217,6 +3269,11 @@ public interface Type extends Narrowable<Type>, PlanSerializable {
             } else {
                 return UUID_NON_NULL_INSTANCE;
             }
+        }
+
+        @Override
+        public <T> T visit(final TypeVisitor<T> visitor) {
+            return visitor.visit(this);
         }
 
         @Nonnull

@@ -22,11 +22,13 @@ package com.apple.foundationdb.relational.recordlayer.metadata.serde;
 
 import com.apple.foundationdb.annotation.API;
 import com.apple.foundationdb.record.RecordMetaDataOptionsProto;
+import com.apple.foundationdb.record.query.plan.cascades.typing.RenameIdsTypeVisitor;
 import com.apple.foundationdb.record.query.plan.cascades.typing.Type;
 import com.apple.foundationdb.record.query.plan.cascades.typing.TypeRepository;
 import com.apple.foundationdb.relational.api.metadata.Metadata;
 import com.apple.foundationdb.relational.api.metadata.SchemaTemplate;
 import com.apple.foundationdb.relational.api.metadata.Table;
+import com.apple.foundationdb.relational.recordlayer.metadata.DataTypeUtils;
 import com.apple.foundationdb.relational.recordlayer.metadata.RecordLayerTable;
 import com.apple.foundationdb.relational.recordlayer.metadata.SkeletonVisitor;
 import com.apple.foundationdb.relational.util.Assert;
@@ -104,7 +106,7 @@ public class FileDescriptorSerializer extends SkeletonVisitor {
         for (var version : generations.entrySet()) {
             final var tableEntryInUnionDescriptor = DescriptorProtos.FieldDescriptorProto.newBuilder()
                     .setNumber(version.getKey())
-                    .setName(recordLayerTable.getName() + "_" + (fieldCounter++))
+                    .setName(typeDescriptor + "_" + (fieldCounter++))
                     .setType(DescriptorProtos.FieldDescriptorProto.Type.TYPE_MESSAGE)
                     .setTypeName(typeDescriptor)
                     .setOptions(version.getValue())
@@ -115,7 +117,11 @@ public class FileDescriptorSerializer extends SkeletonVisitor {
 
     // (yhatem) this is temporary, we use rec layer typing also as a bridge to PB serialization for now.
     @Nonnull
-    private String registerTypeDescriptors(@Nonnull final Type.Record type) {
+    private String registerTypeDescriptors(@Nonnull Type.Record type) {
+        // Update the names to a protobuf compliant name before adding to the file
+        type = (Type.Record) RenameIdsTypeVisitor.renameIds(DataTypeUtils::toProtoBufCompliantName, type);
+
+        // Write out the na
         final var builder = TypeRepository.newBuilder();
         type.defineProtoType(builder);
         final var typeDescriptors = builder.build();

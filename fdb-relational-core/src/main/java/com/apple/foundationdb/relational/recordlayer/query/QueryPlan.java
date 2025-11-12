@@ -42,6 +42,7 @@ import com.apple.foundationdb.record.query.plan.cascades.expressions.RelationalE
 import com.apple.foundationdb.record.query.plan.cascades.predicates.CompatibleTypeEvolutionPredicate;
 import com.apple.foundationdb.record.query.plan.cascades.predicates.DatabaseObjectDependenciesPredicate;
 import com.apple.foundationdb.record.query.plan.cascades.explain.ExplainPlanVisitor;
+import com.apple.foundationdb.record.query.plan.cascades.typing.RenameIdsTypeVisitor;
 import com.apple.foundationdb.record.query.plan.cascades.typing.Type;
 import com.apple.foundationdb.record.query.plan.cascades.typing.TypeRepository;
 import com.apple.foundationdb.record.query.plan.cascades.typing.Typed;
@@ -404,7 +405,10 @@ public abstract class QueryPlan extends Plan<RelationalResultSet> implements Typ
                             parsedContinuation.getExecutionState(),
                             executeProperties));
             final var currentPlanHashMode = OptionsUtils.getCurrentPlanHashMode(options);
-            final var dataType = (DataType.StructType) DataTypeUtils.toRelationalType(type);
+
+            // Translate the types identifiers back to their user visible format when generating the struct meta-data
+            final var dataType = (DataType.StructType) DataTypeUtils.toRelationalType(RenameIdsTypeVisitor.renameIds(DataTypeUtils::toUserIdentifier, type));
+
             return executionContext.metricCollector.clock(RelationalMetric.RelationalEvent.CREATE_RESULT_SET_ITERATOR, () -> {
                 final ResumableIterator<Row> iterator = RecordLayerIterator.create(cursor, messageFDBQueriedRecord -> new MessageTuple(messageFDBQueriedRecord.getMessage()));
                 return new RecordLayerResultSet(RelationalStructMetaData.of(dataType), iterator, connection,
@@ -577,15 +581,19 @@ public abstract class QueryPlan extends Plan<RelationalResultSet> implements Typ
                 return optimizedPlan.get();
             }
             return planContext.getMetricsCollector().clock(RelationalMetric.RelationalEvent.OPTIMIZE_PLAN, () -> {
+                // Translate the query expression from user to internal identifiers
+                final RelationalExpression queryExpression = RenameIdentifiersExpressionVisitor.renameIdentifiers(DataTypeUtils::toProtoBufCompliantName, relationalExpression);
+
+                // Generate the physical plan
                 final TypeRepository.Builder builder = TypeRepository.newBuilder();
-                final Set<Type> usedTypes = usedTypes().evaluate(relationalExpression);
+                final Set<Type> usedTypes = usedTypes().evaluate(queryExpression);
                 usedTypes.forEach(builder::addTypeIfNeeded);
                 final var evaluationContext = context.getEvaluationContext();
                 final var typedEvaluationContext = EvaluationContext.forBindingsAndTypeRepository(evaluationContext.getBindings(), builder.build());
                 final QueryPlanResult planResult;
                 try {
                     planResult = planner.planGraph(() ->
-                                    Reference.initialOf(relationalExpression),
+                                    Reference.initialOf(queryExpression),
                             planContext.getReadableIndexes().map(s -> s),
                             IndexQueryabilityFilter.TRUE,
                             typedEvaluationContext);

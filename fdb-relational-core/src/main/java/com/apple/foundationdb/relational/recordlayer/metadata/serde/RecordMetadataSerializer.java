@@ -21,17 +21,16 @@
 package com.apple.foundationdb.relational.recordlayer.metadata.serde;
 
 import com.apple.foundationdb.annotation.API;
-
 import com.apple.foundationdb.record.RecordMetaData;
 import com.apple.foundationdb.record.RecordMetaDataBuilder;
 import com.apple.foundationdb.record.metadata.Index;
-import com.apple.foundationdb.record.metadata.IndexPredicate;
 import com.apple.foundationdb.record.metadata.RecordTypeBuilder;
 import com.apple.foundationdb.record.metadata.expressions.KeyExpression;
 import com.apple.foundationdb.relational.api.metadata.InvokedRoutine;
 import com.apple.foundationdb.relational.api.metadata.SchemaTemplate;
 import com.apple.foundationdb.relational.api.metadata.Table;
 import com.apple.foundationdb.relational.api.metadata.View;
+import com.apple.foundationdb.relational.recordlayer.metadata.DataTypeUtils;
 import com.apple.foundationdb.relational.recordlayer.metadata.RecordLayerIndex;
 import com.apple.foundationdb.relational.recordlayer.metadata.RecordLayerInvokedRoutine;
 import com.apple.foundationdb.relational.recordlayer.metadata.RecordLayerSchemaTemplate;
@@ -39,7 +38,6 @@ import com.apple.foundationdb.relational.recordlayer.metadata.RecordLayerTable;
 import com.apple.foundationdb.relational.recordlayer.metadata.RecordLayerView;
 import com.apple.foundationdb.relational.recordlayer.metadata.SkeletonVisitor;
 import com.apple.foundationdb.relational.util.Assert;
-
 import com.google.protobuf.Descriptors;
 
 import javax.annotation.Nonnull;
@@ -65,8 +63,11 @@ public class RecordMetadataSerializer extends SkeletonVisitor {
     public void visit(@Nonnull Table table) {
         Assert.thatUnchecked(table instanceof RecordLayerTable);
         final var recLayerTable = (RecordLayerTable) table;
-        final KeyExpression keyExpression = recLayerTable.getPrimaryKey();
-        final RecordTypeBuilder recordType = getBuilder().getRecordType(table.getName());
+        final String internalName = DataTypeUtils.toProtoBufCompliantName(table.getName());
+        final KeyExpression keyExpression = KeyExpressionTransformFieldVisitor.rewriteFieldExpressions(
+                DataTypeUtils::toProtoBufCompliantName,
+                recLayerTable.getPrimaryKey());
+        final RecordTypeBuilder recordType = getBuilder().getRecordType(internalName);
         recordType.setRecordTypeKey(recordTypeCounter++);
         recordType.setPrimaryKey(keyExpression);
     }
@@ -80,12 +81,12 @@ public class RecordMetadataSerializer extends SkeletonVisitor {
         // See: TODO (Relational index misses version information)
         Assert.thatUnchecked(index instanceof RecordLayerIndex);
         final var recLayerIndex = (RecordLayerIndex) index;
-        getBuilder().addIndex(index.getTableName(),
+        getBuilder().addIndex(DataTypeUtils.toProtoBufCompliantName(index.getTableName()),
                 new Index(index.getName(),
-                        recLayerIndex.getKeyExpression(),
+                        KeyExpressionTransformFieldVisitor.rewriteFieldExpressions(DataTypeUtils::toProtoBufCompliantName, recLayerIndex.getKeyExpression()),
                         index.getIndexType(),
                         recLayerIndex.getOptions(),
-                        recLayerIndex.getPredicate() == null ? null : IndexPredicate.fromProto(recLayerIndex.getPredicate())));
+                        recLayerIndex.getRewrittenPredicate(DataTypeUtils::toProtoBufCompliantName)));
     }
 
     @Override

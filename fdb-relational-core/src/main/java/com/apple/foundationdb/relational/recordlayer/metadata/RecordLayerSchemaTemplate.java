@@ -194,6 +194,9 @@ public final class RecordLayerSchemaTemplate implements SchemaTemplate {
 
     @Nonnull
     private RecordMetaData buildRecordMetadata() {
+        // Escape Protobuf names
+
+        // Generate Protobuf file descriptor
         final var fileDescriptorProtoSerializer = new FileDescriptorSerializer();
         accept(fileDescriptorProtoSerializer);
         final Descriptors.FileDescriptor fileDescriptor;
@@ -205,6 +208,8 @@ public final class RecordLayerSchemaTemplate implements SchemaTemplate {
         } catch (Descriptors.DescriptorValidationException e) {
             throw new RelationalException(ErrorCode.SERIALIZATION_FAILURE, e).toUncheckedWrappedException();
         }
+
+        // Serialize RecordMetaData
         final var recordMetadataSerializer = new RecordMetadataSerializer(fileDescriptor);
         accept(recordMetadataSerializer);
         return recordMetadataSerializer.getBuilder().build();

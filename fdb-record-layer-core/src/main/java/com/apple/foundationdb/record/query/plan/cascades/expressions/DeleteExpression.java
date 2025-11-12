@@ -62,6 +62,11 @@ public class DeleteExpression extends AbstractRelationalExpressionWithChildren i
         this.resultValue = inner.getFlowedObjectValue();
     }
 
+    @Nonnull
+    public String getTargetRecordType() {
+        return targetRecordType;
+    }
+
     @Override
     public int getRelationalChildCount() {
         return 1;

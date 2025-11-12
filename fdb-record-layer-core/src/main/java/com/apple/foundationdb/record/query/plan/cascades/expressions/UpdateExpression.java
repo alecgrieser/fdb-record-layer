@@ -86,6 +86,11 @@ public class UpdateExpression extends AbstractRelationalExpressionWithChildren i
     }
 
     @Nonnull
+    public String getTargetRecordType() {
+        return targetRecordType;
+    }
+
+    @Nonnull
     public Type.Record getTargetType() {
         return targetType;
     }

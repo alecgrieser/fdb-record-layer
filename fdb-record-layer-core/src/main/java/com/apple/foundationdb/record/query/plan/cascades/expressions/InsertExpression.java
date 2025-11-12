@@ -99,6 +99,16 @@ public class InsertExpression extends AbstractRelationalExpressionWithChildren i
     }
 
     @Nonnull
+    public Type.Record getTargetType() {
+        return targetType;
+    }
+
+    @Nonnull
+    public String getTargetRecordType() {
+        return targetRecordType;
+    }
+
+    @Nonnull
     @Override
     public Value getResultValue() {
         return resultValue;

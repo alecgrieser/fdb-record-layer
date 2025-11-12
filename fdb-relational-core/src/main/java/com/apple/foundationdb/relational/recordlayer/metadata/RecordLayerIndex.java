@@ -21,19 +21,21 @@
 package com.apple.foundationdb.relational.recordlayer.metadata;
 
 import com.apple.foundationdb.annotation.API;
-
 import com.apple.foundationdb.record.RecordMetaDataProto;
 import com.apple.foundationdb.record.metadata.IndexOptions;
+import com.apple.foundationdb.record.metadata.IndexPredicate;
 import com.apple.foundationdb.record.metadata.expressions.KeyExpression;
+import com.apple.foundationdb.relational.api.exceptions.ErrorCode;
 import com.apple.foundationdb.relational.api.metadata.Index;
+import com.apple.foundationdb.relational.recordlayer.metadata.serde.KeyExpressionTransformFieldVisitor;
 import com.apple.foundationdb.relational.util.Assert;
-
 import com.google.common.collect.ImmutableMap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.UnaryOperator;
 
 @API(API.Status.EXPERIMENTAL)
 public final class RecordLayerIndex implements Index  {
@@ -119,10 +121,52 @@ public final class RecordLayerIndex implements Index  {
         return newBuilder().setName(index.getName())
                 .setIndexType(index.getType())
                 .setTableName(tableName)
-                .setKeyExpression(index.getRootExpression())
-                .setPredicate(indexProto.hasPredicate() ? indexProto.getPredicate() : null)
+                .setKeyExpression(KeyExpressionTransformFieldVisitor.rewriteFieldExpressions(DataTypeUtils::toUserIdentifier, index.getRootExpression()))
+                .setPredicate(indexProto.hasPredicate() ? rewritePredicate(DataTypeUtils::toUserIdentifier, indexProto.getPredicate()) : null)
                 .setOptions(index.getOptions())
                 .build();
+    }
+
+    @Nullable
+    public IndexPredicate getRewrittenPredicate(@Nonnull UnaryOperator<String> idTransformer) {
+        if (predicate == null) {
+            return null;
+        }
+        return IndexPredicate.fromProto(rewritePredicate(idTransformer, predicate));
+    }
+
+    @Nonnull
+    private static RecordMetaDataProto.Predicate rewritePredicate(@Nonnull UnaryOperator<String> idTransformer, @Nonnull RecordMetaDataProto.Predicate predicate) {
+        if (predicate.hasAndPredicate()) {
+            RecordMetaDataProto.AndPredicate oldAnd = predicate.getAndPredicate();
+            RecordMetaDataProto.AndPredicate.Builder newAndBuilder = RecordMetaDataProto.AndPredicate.newBuilder();
+            for (RecordMetaDataProto.Predicate child : oldAnd.getChildrenList()) {
+                newAndBuilder.addChildren(rewritePredicate(idTransformer, child));
+            }
+            return RecordMetaDataProto.Predicate.newBuilder().setAndPredicate(newAndBuilder.build()).build();
+        } else if (predicate.hasOrPredicate()) {
+            RecordMetaDataProto.OrPredicate oldOr = predicate.getOrPredicate();
+            RecordMetaDataProto.OrPredicate.Builder newOrBuilder = RecordMetaDataProto.OrPredicate.newBuilder();
+            for (RecordMetaDataProto.Predicate child : oldOr.getChildrenList()) {
+                newOrBuilder.addChildren(rewritePredicate(idTransformer, child));
+            }
+            return RecordMetaDataProto.Predicate.newBuilder().setOrPredicate(newOrBuilder.build()).build();
+        } else if (predicate.hasConstantPredicate()) {
+            return predicate;
+        } else if (predicate.hasNotPredicate()) {
+            return RecordMetaDataProto.Predicate.newBuilder()
+                    .setNotPredicate(RecordMetaDataProto.NotPredicate.newBuilder()
+                                    .setChild(rewritePredicate(idTransformer, predicate.getNotPredicate().getChild())))
+                    .build();
+        } else if (predicate.hasValuePredicate()) {
+            RecordMetaDataProto.ValuePredicate oldValuePredicate = predicate.getValuePredicate();
+            RecordMetaDataProto.ValuePredicate.Builder newValuePredicate = RecordMetaDataProto.ValuePredicate.newBuilder();
+            oldValuePredicate.getValueList().forEach(v -> newValuePredicate.addValue(idTransformer.apply(v)));
+            newValuePredicate.setComparison(oldValuePredicate.getComparison());
+            return RecordMetaDataProto.Predicate.newBuilder().setValuePredicate(newValuePredicate).build();
+        } else {
+            throw Assert.failUnchecked(ErrorCode.INTERNAL_ERROR, "Unable to translate predicate of unknown type");
+        }
     }
 
     @Override
