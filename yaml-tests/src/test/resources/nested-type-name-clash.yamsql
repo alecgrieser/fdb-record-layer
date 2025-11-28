@@ -1,0 +1,157 @@
+#
+# nested-type-name-clash.yamsql
+#
+# This source file is part of the FoundationDB open source project
+#
+# Copyright 2021-2026 Apple Inc. and the FoundationDB project authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+---
+options:
+  # Earliest version that supports connection options with transactional setups.
+  supported_version: 4.7.1.0
+  connection_options:
+    CASE_SENSITIVE_IDENTIFIERS: true
+---
+setup:
+  connect: "jdbc:embed:/__SYS?schema=CATALOG"
+  steps:
+    - query: drop schema template if exists NESTED_TYPE_NAME_CLASH_TEMPLATE
+    - query: drop database if exists /FRL/NESTED_TYPE_NAME_CLASH_YAML
+    - query: create database /FRL/NESTED_TYPE_NAME_CLASH_YAML
+    - load schema template: NESTED_TYPE_NAME_CLASH_TEMPLATE from com.apple.foundationdb.relational.yamltests.generated.nestedtypenameclash.NestedTypeNameClashProto
+    - query: create schema /FRL/NESTED_TYPE_NAME_CLASH_YAML/TEST with template NESTED_TYPE_NAME_CLASH_TEMPLATE
+---
+setup:
+  connect: "jdbc:embed:/FRL/NESTED_TYPE_NAME_CLASH_YAML?schema=TEST"
+  steps:
+    - query: INSERT INTO OuterRecord VALUES
+               (100, ('alpha',   (1, 'A', 'ONE',   'ALFA',    (10), ('foo'), (false)), 'A', 'ONE',   'ALFA',    (100), ('blah_foo'), (false)), (1, 'A', 'ONE',   'ALFA',    (1000), ('second_foo'), (true))),
+               (101, ('alpha',   (1, 'A', 'ONE',   'ALFA',    (10), ('foo'), (false)), 'A', 'ONE',   'ALFA',    (100), ('blah_foo'), (false)), (2, 'B', 'TWO',   'BRAVO',   (1000), ('second_foo'), (true))),
+               (102, ('alpha',   (1, 'A', 'ONE',   'ALFA',    (10), ('foo'), (false)), 'A', 'ONE',   'ALFA',    (100), ('blah_foo'), (false)), (3, 'C', 'THREE', 'CHARLIE', (1000), ('second_foo'), (true))),
+               (103, ('alpha',   (1, 'A', 'ONE',   'ALFA',    (10), ('foo'), (false)), 'A', 'ONE',   'ALFA',    (100), ('blah_foo'), (false)), (4, 'D', 'FOUR',  'DELTA',   (1000), ('second_foo'), (true))),
+               (104, ('bravo',   (2, 'B', 'TWO',   'BRAVO',   (11), ('bar'), (true)),  'A', 'ONE',   'ALFA',    (100), ('blah_foo'), (false)), (1, 'A', 'ONE',   'ALFA',    (1002), ('second_bar'), (false))),
+               (105, ('charlie', (3, 'C', 'THREE', 'CHARLIE', (12), ('baz'), (false)), 'A', 'ONE',   'ALFA',    (100), ('blah_foo'), (false)), (1, 'A', 'ONE',   'ALFA',    (1004), ('second_baz'), (false))),
+               (106, ('delta',   (4, 'D', 'FOUR',  'DELTA',   (13), ('qux'), (true)),  'A', 'ONE',   'ALFA',    (100), ('blah_foo'), (false)), (1, 'A', 'ONE',   'ALFA',    (1008), ('second_qux'), (false))),
+               (107, ('alpha',   (1, 'A', 'ONE',   'ALFA',    (10), ('foo'), (false)), 'B', 'TWO',   'BRAVO',   (103), ('blah_bar'), (true)),  (1, 'A', 'ONE',   'ALFA',    (1000), ('second_foo'), (true))),
+               (108, ('alpha',   (1, 'A', 'ONE',   'ALFA',    (10), ('foo'), (true)),  'C', 'THREE', 'CHARLIE', (105), ('blah_baz'), (true)),  (1, 'A', 'ONE',   'ALFA',    (1000), ('second_foo'), (true)))
+---
+test_block:
+  connect: "jdbc:embed:/FRL/NESTED_TYPE_NAME_CLASH_YAML?schema=TEST"
+  preset: single_repetition_ordered
+  tests:
+    # Select only the id field
+    -
+      - query: SELECT OuterRecord.id FROM OuterRecord WHERE middle.middle_id = 'alpha';
+      - explain: "SCAN(<,>) | FILTER _.middle.middle_id EQUALS promote(@c12 AS STRING) | MAP (_.id AS id)"
+      - result: [
+         { id: 100 },
+         { id: 101 },
+         { id: 102 },
+         { id: 103 },
+         { id: 107 },
+         { id: 108 },
+        ]
+    -
+      - query: SELECT OuterRecord.id FROM OuterRecord WHERE middle.middle_id = 'bravo';
+      - result: [
+         { id: 104 },
+        ]
+    -
+      - query: SELECT OuterRecord.id FROM OuterRecord WHERE "inner".inner_id = 1;
+      - explain: "SCAN(<,>) | FILTER _.inner.inner_id EQUALS promote(@c12 AS LONG) | MAP (_.id AS id)"
+      - result: [
+         { id: 100 },
+         { id: 104 },
+         { id: 105 },
+         { id: 106 },
+         { id: 107 },
+         { id: 108 },
+        ]
+    -
+      - query: SELECT OuterRecord.id FROM OuterRecord WHERE "inner".inner_id = 3;
+      - result: [
+         { id: 102 },
+        ]
+    -
+      - query: SELECT OuterRecord.id FROM OuterRecord WHERE middle."inner".inner_id = 1;
+      - explain: "SCAN(<,>) | FILTER _.middle.inner.inner_id EQUALS promote(@c14 AS LONG) | MAP (_.id AS id)"
+      - result: [
+         { id: 100 },
+         { id: 101 },
+         { id: 102 },
+         { id: 103 },
+         { id: 107 },
+         { id: 108 },
+        ]
+    -
+      - query: SELECT OuterRecord.id FROM OuterRecord WHERE middle."inner".inner_id = 4;
+      - result: [
+         { id: 106 },
+        ]
+    -
+      - query: SELECT OuterRecord.id FROM OuterRecord WHERE middle.middle_type = 'A';
+      - explain: "SCAN(<,>) | FILTER _.middle.middle_type EQUALS promote(@c12 AS ENUM<A(0), B(1), C(2)>) | MAP (_.id AS id)"
+      - result: [
+         { id: 100 },
+         { id: 101 },
+         { id: 102 },
+         { id: 103 },
+         { id: 104 },
+         { id: 105 },
+         { id: 106 },
+        ]
+    -
+      - query: SELECT OuterRecord.id FROM OuterRecord WHERE "inner".inner_type = 'A';
+      - explain: "SCAN(<,>) | FILTER _.inner.inner_type EQUALS promote(@c12 AS ENUM<A(0), B(1), C(2), D(3)>) | MAP (_.id AS id)"
+      - result: [
+         { id: 100 },
+         { id: 104 },
+         { id: 105 },
+         { id: 106 },
+         { id: 107 },
+         { id: 108 },
+        ]
+    -
+      - query: SELECT OuterRecord.id FROM OuterRecord WHERE middle."inner".inner_type = 'A';
+      - explain: "SCAN(<,>) | FILTER _.middle.inner.inner_type EQUALS promote(@c14 AS ENUM<A(0), B(1), C(2), D(3)>) | MAP (_.id AS id)"
+      - result: [
+         { id: 100 },
+         { id: 101 },
+         { id: 102 },
+         { id: 103 },
+         { id: 107 },
+         { id: 108 },
+        ]
+
+    # # Select *
+    # -
+    #   - query: SELECT * FROM OuterRecord WHERE middle.middle_id = 'alpha';
+    #   - explain: "SCAN(<,>) | FILTER _.middle.middle_id EQUALS promote(@c10 AS STRING)"
+    #   - maxRows: 0
+    #   - result: [
+    #      { id: 100, middle: { middle_id: "alpha", inner: { inner_id: 1, inner_type: "A", inner_category: "ONE", inner_sign: "ALFA", inner_blah: { blah_blah: 10 }, inner_whatever: {  whatever: "foo" }, inner_payload: { datum: false } }, middle_type: "A", middle_category: "ONE",   middle_grouping: "ALFA",    middle_blah: { blah: 100 }, middle_whatever: { whatever: "blah_foo" }, middle_anything: { datum: false } }, inner: { inner_id: 1, inner_type: "A", inner_category: "ONE",   inner_sign: "ALFA",     inner_blah: { blah_blah: 1000 }, inner_whatever: { whatever: "second_foo" }, inner_payload: { datum: true } } },
+    #      { id: 101, middle: { middle_id: "alpha", inner: { inner_id: 1, inner_type: "A", inner_category: "ONE", inner_sign: "ALFA", inner_blah: { blah_blah: 10 }, inner_whatever: {  whatever: "foo" }, inner_payload: { datum: false } }, middle_type: "A", middle_category: "ONE",   middle_grouping: "ALFA",    middle_blah: { blah: 100 }, middle_whatever: { whatever: "blah_foo" }, middle_anything: { datum: false } }, inner: { inner_id: 2, inner_type: "B", inner_category: "TWO",   inner_sign: "BRAVO",    inner_blah: { blah_blah: 1000 }, inner_whatever: { whatever: "second_foo" }, inner_payload: { datum: true } } },
+    #      { id: 102, middle: { middle_id: "alpha", inner: { inner_id: 1, inner_type: "A", inner_category: "ONE", inner_sign: "ALFA", inner_blah: { blah_blah: 10 }, inner_whatever: {  whatever: "foo" }, inner_payload: { datum: false } }, middle_type: "A", middle_category: "ONE",   middle_grouping: "ALFA",    middle_blah: { blah: 100 }, middle_whatever: { whatever: "blah_foo" }, middle_anything: { datum: false } }, inner: { inner_id: 3, inner_type: "C", inner_category: "THREE", inner_sign: "CHARLIE",  inner_blah: { blah_blah: 1000 }, inner_whatever: { whatever: "second_foo" }, inner_payload: { datum: true } } },
+    #      { id: 103, middle: { middle_id: "alpha", inner: { inner_id: 1, inner_type: "A", inner_category: "ONE", inner_sign: "ALFA", inner_blah: { blah_blah: 10 }, inner_whatever: {  whatever: "foo" }, inner_payload: { datum: false } }, middle_type: "A", middle_category: "ONE",   middle_grouping: "ALFA",    middle_blah: { blah: 100 }, middle_whatever: { whatever: "blah_foo" }, middle_anything: { datum: false } }, inner: { inner_id: 4, inner_type: "D", inner_category: "FOUR",  inner_sign: "DELTA",    inner_blah: { blah_blah: 1000 }, inner_whatever: { whatever: "second_foo" }, inner_payload: { datum: true } } },
+    #      { id: 107, middle: { middle_id: "alpha", inner: { inner_id: 1, inner_type: "A", inner_category: "ONE", inner_sign: "ALFA", inner_blah: { blah_blah: 10 }, inner_whatever: {  whatever: "foo" }, inner_payload: { datum: false } }, middle_type: "B", middle_category: "TWO",   middle_grouping: "BRAVO",   middle_blah: { blah: 103 }, middle_whatever: { whatever: "blah_bar" }, middle_anything: { datum: true  } }, inner: { inner_id: 1, inner_type: "A", inner_category: "ONE",   inner_sign: "ALFA",     inner_blah: { blah_blah: 1000 }, inner_whatever: { whatever: "second_foo" }, inner_payload: { datum: true } } },
+    #      { id: 108, middle: { middle_id: "alpha", inner: { inner_id: 1, inner_type: "A", inner_category: "ONE", inner_sign: "ALFA", inner_blah: { blah_blah: 10 }, inner_whatever: {  whatever: "foo" }, inner_payload: { datum: true  } }, middle_type: "C", middle_category: "THREE", middle_grouping: "CHARLIE", middle_blah: { blah: 105 }, middle_whatever: { whatever: "blah_baz" }, middle_anything: { datum: true  } }, inner: { inner_id: 1, inner_type: "A", inner_category: "ONE",   inner_sign: "ALFA",     inner_blah: { blah_blah: 1000 }, inner_whatever: { whatever: "second_foo" }, inner_payload: { datum: true } } },
+    #     ]
+---
+setup:
+  connect: "jdbc:embed:/__SYS?schema=CATALOG"
+  steps:
+    - query: drop schema template NESTED_TYPE_NAME_CLASH_TEMPLATE
+    - query: drop database /FRL/NESTED_TYPE_NAME_CLASH_YAML
+...

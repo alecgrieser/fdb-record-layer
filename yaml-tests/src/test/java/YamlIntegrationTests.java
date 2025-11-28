@@ -18,6 +18,7 @@
  * limitations under the License.
  */
 
+import com.apple.foundationdb.relational.yamltests.ExcludeYamlTestConfig;
 import com.apple.foundationdb.relational.yamltests.MaintainYamlTestConfig;
 import com.apple.foundationdb.relational.yamltests.YamlTest;
 import com.apple.foundationdb.relational.yamltests.YamlTestConfigFilters;
@@ -210,6 +211,11 @@ public class YamlIntegrationTests {
     @TestTemplate
     public void nested(YamlTest.Runner runner) throws Exception {
         runner.runYamsql("nested-tests.yamsql");
+    }
+
+    @TestTemplate
+    public void nestedTypeNameClash(YamlTest.Runner runner) throws Exception {
+        runner.runYamsql("nested-type-name-clash.yamsql");
     }
 
     @TestTemplate

@@ -1923,7 +1923,9 @@ public interface Type extends Narrowable<Type>, PlanSerializable {
 
         @Nonnull
         public static Enum fromDescriptorPreservingNames(boolean isNullable, @Nonnull Descriptors.EnumDescriptor enumDescriptor) {
-            return new Type.Enum(isNullable, enumValuesFromProto(enumDescriptor.getValues()), ProtoUtils.toUserIdentifier(enumDescriptor.getName()), enumDescriptor.getName());
+            final String userName = ProtoUtils.toUserIdentifier(enumDescriptor.getName());
+            final String protoName = enumDescriptor.getFullName();
+            return new Type.Enum(isNullable, enumValuesFromProto(enumDescriptor.getValues()), userName, protoName);
         }
 
         @Nonnull
@@ -2184,6 +2186,11 @@ public interface Type extends Narrowable<Type>, PlanSerializable {
         @Nonnull
         public Record withName(@Nonnull final String name) {
             return new Record(name, ProtoUtils.toProtoBufCompliantName(name), isNullable, fields);
+        }
+
+        @Nonnull
+        public Record withStorageName(@Nonnull final String storageName) {
+            return new Record(ProtoUtils.toUserIdentifier(storageName), storageName, isNullable, fields);
         }
 
         @Nullable
@@ -2541,7 +2548,9 @@ public interface Type extends Narrowable<Type>, PlanSerializable {
 
         @Nonnull
         public static Record fromDescriptorPreservingName(final Descriptors.Descriptor descriptor) {
-            return new Record(ProtoUtils.toUserIdentifier(descriptor.getName()), descriptor.getName(), false,
+            final String userName = ProtoUtils.toUserIdentifier(descriptor.getName());
+            final String storageName = descriptor.getFullName();
+            return new Record(userName, storageName, false,
                     fieldsFromDescriptorMap(toFieldDescriptorMap(descriptor.getFields()), true));
         }
 

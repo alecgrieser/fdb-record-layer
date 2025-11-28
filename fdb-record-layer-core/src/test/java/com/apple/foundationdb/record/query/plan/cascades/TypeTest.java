@@ -65,7 +65,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
 import java.util.UUID;
@@ -215,7 +214,7 @@ class TypeTest {
         final TypeRepository typeRepository = builder.build();
         final Descriptors.FileDescriptor fileDescriptor = Descriptors.FileDescriptor.buildFrom(
                 DescriptorProtos.FileDescriptorProto.newBuilder()
-                        .addAllMessageType(typeRepository.getMessageTypes().stream().map(typeRepository::getMessageDescriptor).filter(Objects::nonNull).map(Descriptors.Descriptor::toProto).collect(Collectors.toUnmodifiableList()))
+                        .addAllMessageType(typeRepository.getMessageDescriptors().stream().map(Descriptors.Descriptor::toProto).collect(Collectors.toUnmodifiableList()))
                         .build(),
                 TypeRepository.DEPENDENCIES.toArray(new Descriptors.FileDescriptor[0]));
         final Descriptors.Descriptor messageDescriptor = fileDescriptor.findMessageTypeByName(typeName.get());
@@ -535,7 +534,7 @@ class TypeTest {
         final TypeRepository repository = typeBuilder.build();
 
         final String enumTypeName = repository.getProtoTypeName(enumType);
-        assertThat(repository.getEnumTypes())
+        assertThat(repository.getEnumTypeNames())
                 .containsExactly(enumTypeName);
         if (expectedStorageName == null) {
             assertThat(enumType.getName())
@@ -551,8 +550,7 @@ class TypeTest {
         }
         final Descriptors.EnumDescriptor enumDescriptor = repository.getEnumDescriptor(enumType);
         assertThat(enumDescriptor)
-                .isNotNull()
-                .isSameAs(repository.getEnumDescriptor(enumTypeName));
+                .isNotNull();
         assertThat(enumDescriptor.getName())
                 .isEqualTo(enumTypeName);
 
@@ -600,7 +598,7 @@ class TypeTest {
         final TypeRepository repository = typeBuilder.build();
 
         final String recordTypeName = repository.getProtoTypeName(recordType);
-        assertThat(repository.getMessageTypes())
+        assertThat(repository.getMessageTypeNames())
                 .contains(recordTypeName);
         if (expectedStorageName == null) {
             assertThat(recordType.getName())
@@ -616,8 +614,7 @@ class TypeTest {
         }
         final Descriptors.Descriptor messageDescriptor = repository.getMessageDescriptor(recordType);
         assertThat(messageDescriptor)
-                .isNotNull()
-                .isSameAs(repository.getMessageDescriptor(recordTypeName));
+                .isNotNull();
         assertThat(messageDescriptor.getName())
                 .isEqualTo(recordTypeName);
 

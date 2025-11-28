@@ -137,7 +137,7 @@ public class RecordMetadataDeserializer {
         //      we will avoid this step by having our own deserializers.
         // todo (yhatem) this is hacky and must be cleaned up. We need to understand the actually field types so we can take decisions
         //      on higher level based on these types (wave3).
-        final var recordLayerType = Type.Record.fromDescriptorPreservingName(recordType.getDescriptor());
+        final var recordLayerType = Type.Record.fromDescriptor(recordType.getDescriptor()).withStorageName(recordType.getName());
         return RecordLayerTable.Builder
                 .from(recordLayerType)
                 .setName(userName)

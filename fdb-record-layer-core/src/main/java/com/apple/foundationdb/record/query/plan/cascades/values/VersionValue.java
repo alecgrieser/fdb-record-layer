@@ -89,7 +89,7 @@ public class VersionValue extends AbstractValue {
     @SuppressWarnings("PMD.CompareObjectsWithEquals")
     public VersionValue withChildren(@Nonnull final Iterable<? extends Value> newChildren) {
         final var newChild = Iterables.getOnlyElement(newChildren);
-        if (newChild == getChildQuantifiedRecordValue()) {
+        if (newChild == childValue) {
             return this;
         }
         if (newChild instanceof QuantifiedObjectValue) {
@@ -104,11 +104,6 @@ public class VersionValue extends AbstractValue {
                     newChildQuantifiedObjectValue.getResultType()));
         }
         return new VersionValue(newChild);
-    }
-
-    @Nonnull
-    public QuantifiedRecordValue getChildQuantifiedRecordValue() {
-        return (QuantifiedRecordValue)childValue;
     }
 
     @Nonnull
