@@ -218,8 +218,10 @@ public class StructDataMetadataTest {
     @Test
     void canReadProjectedNestedStructTypeNameInNestedStar() throws Throwable {
         canReadStructTypeName("SELECT (*) FROM NT", resultSet -> {
-            RelationalStruct struct = resultSet.getStruct(1).getStruct("ST1").getStruct("D");
-            Assertions.assertEquals("STRUCT_1", struct.getMetaData().getTypeName());
+            RelationalStruct struct = resultSet.getStruct(1).getStruct("ST1");
+            Assertions.assertEquals("STRUCT_2", struct.getMetaData().getTypeName());
+            RelationalStruct nestedStruct = struct.getStruct("D");
+            Assertions.assertEquals("STRUCT_1", nestedStruct.getMetaData().getTypeName());
         });
     }
 
@@ -243,8 +245,10 @@ public class StructDataMetadataTest {
     @Test
     void canReadProjectedNestedStructTypeNameInUnnestedStar() throws Throwable {
         canReadStructTypeName("SELECT * FROM NT", resultSet -> {
-            RelationalStruct struct = resultSet.getStruct("ST1").getStruct("D");
-            Assertions.assertEquals("STRUCT_1", struct.getMetaData().getTypeName());
+            RelationalStruct struct = resultSet.getStruct("ST1");
+            Assertions.assertEquals("STRUCT_2", struct.getMetaData().getTypeName());
+            RelationalStruct nestedStruct = struct.getStruct("D");
+            Assertions.assertEquals("STRUCT_1", nestedStruct.getMetaData().getTypeName());
         });
     }
 
@@ -449,6 +453,7 @@ public class StructDataMetadataTest {
     void nestedStructTypeMetadataPreservedInContinuationAcrossPlanCache() throws Throwable {
         canReadStructTypeName("SELECT * FROM NT", resultSet -> {
             RelationalStruct struct = resultSet.getStruct("ST1");
+            Assertions.assertEquals("STRUCT_2", struct.getMetaData().getTypeName());
             RelationalStruct nestedStruct = struct.getStruct("D");
             Assertions.assertEquals("STRUCT_1", nestedStruct.getMetaData().getTypeName(),
                     "Nested struct type name should be preserved in continuation across plan cache");
