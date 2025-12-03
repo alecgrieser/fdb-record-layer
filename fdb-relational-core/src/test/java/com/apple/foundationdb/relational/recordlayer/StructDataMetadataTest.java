@@ -58,7 +58,12 @@ public class StructDataMetadataTest {
                     " CREATE TYPE AS STRUCT struct_2 (c bigint, d struct_1) " +
                     " CREATE TABLE nt (t_name string, st1 struct_2, PRIMARY KEY(t_name))" +
                     " CREATE TYPE AS STRUCT struct_3 (c bytes, d boolean) " +
-                    " CREATE TABLE at (a_name string, st2 struct_3 ARRAY, PRIMARY KEY(a_name))";
+                    " CREATE TABLE at (a_name string, st2 struct_3 ARRAY, PRIMARY KEY(a_name)) " +
+                    " CREATE TYPE AS STRUCT n1(a bigint, b string) " +
+                    " CREATE TYPE AS STRUCT n2(a bigint, b string) " +
+                    " CREATE TYPE AS STRUCT m(x n1, y n2) " +
+                    " CREATE TABLE t3(id bigint, m m, PRIMARY KEY(id)) " +
+                    " CREATE TABLE t4(id bigint, n1 n1, n2 n2, PRIMARY KEY(id)) ";
 
     /*
     message at {
@@ -144,6 +149,35 @@ public class StructDataMetadataTest {
                         .build())
                 .build();
         statement.executeInsert("AT", m);
+
+        RelationalStruct t3 = EmbeddedRelationalStruct.newBuilder()
+                .addLong("ID", 1L)
+                .addStruct("M", EmbeddedRelationalStruct.newBuilder()
+                        .addStruct("X", EmbeddedRelationalStruct.newBuilder()
+                                .addLong("A", 100L)
+                                .addString("B", "blah")
+                                .build())
+                        .addStruct("Y", EmbeddedRelationalStruct.newBuilder()
+                                .addLong("A", 101L)
+                                .addString("B", "blah blah")
+                                .build())
+                        .build()
+                )
+                .build();
+        statement.executeInsert("T3", t3);
+
+        RelationalStruct t4 = EmbeddedRelationalStruct.newBuilder()
+                .addLong("ID", 2L)
+                .addStruct("N1", EmbeddedRelationalStruct.newBuilder()
+                        .addLong("A", 100L)
+                        .addString("B", "blah")
+                        .build())
+                .addStruct("N2", EmbeddedRelationalStruct.newBuilder()
+                        .addLong("A", 101L)
+                        .addString("B", "blah blah")
+                        .build())
+                .build();
+        statement.executeInsert("T4", t4);
     }
 
     @Test
@@ -309,6 +343,28 @@ public class StructDataMetadataTest {
         canReadStructTypeName("SELECT (name, STRUCT STRUCT_7(name, st1.a)) FROM T", resultSet -> {
             RelationalStruct struct = resultSet.getStruct(1);
             Assertions.assertEquals("STRUCT_7", struct.getStruct(2).getMetaData().getTypeName());
+        });
+    }
+
+    @Test
+    void canDistinguishFieldsOfStructurallyEqualTypes() throws Throwable {
+        canReadStructTypeName("SELECT * FROM T4", resultSet -> {
+            RelationalStruct struct1 = resultSet.getStruct("N1");
+            Assertions.assertEquals("N1", struct1.getMetaData().getTypeName());
+            RelationalStruct struct2 = resultSet.getStruct("N2");
+            Assertions.assertEquals("N2", struct2.getMetaData().getTypeName());
+        });
+    }
+
+    @Test
+    void canDistinguishNestedFieldsOfStructurallyEqualTypes() throws Throwable {
+        canReadStructTypeName("SELECT * FROM T3", resultSet -> {
+            RelationalStruct struct = resultSet.getStruct("M");
+            Assertions.assertEquals("M", struct.getMetaData().getTypeName());
+            RelationalStruct struct1 = struct.getStruct("X");
+            Assertions.assertEquals("N1", struct1.getMetaData().getTypeName());
+            RelationalStruct struct2 = struct.getStruct("Y");
+            Assertions.assertEquals("N2", struct2.getMetaData().getTypeName());
         });
     }
 
