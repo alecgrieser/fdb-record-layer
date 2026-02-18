@@ -101,7 +101,7 @@ test_block:
                 from t1, t2
                 where t1.a1 = 1 and t2.b1 = 1 and t1.a3 = t2.b3
                 order by t1.a2
-      - explain: "ISCAN(t1$a1_a2 [EQUALS promote(@c22 AS LONG)]) | FLATMAP q0 -> { COVERING(t2$b1_b3 [EQUALS promote(@c22 AS LONG)] -> [b1: KEY:[0], b3: KEY:[1], id: KEY:[2]]) | FILTER q0.a3 EQUALS _.b3 | FETCH AS q1 RETURN ((q0.id AS id, q0.a1 AS a1, q0.a2 AS a2, q0.a3 AS a3) AS _0, (q1.id AS id, q1.b1 AS b1, q1.b2 AS b2, q1.b3 AS b3) AS _1) }"
+      - explain: "ISCAN(t1$a1_a2 [EQUALS promote(@c22 AS LONG)]) | FLATMAP q0 -> { ISCAN(t2$b1 [EQUALS promote(@c22 AS LONG)]) | FILTER q0.a3 EQUALS _.b3 AS q1 RETURN ((q0.id AS id, q0.a1 AS a1, q0.a2 AS a2, q0.a3 AS a3) AS _0, (q1.id AS id, q1.b1 AS b1, q1.b2 AS b2, q1.b3 AS b3) AS _1) }"
       - result: [
           { { id: 1001, a1: 1, a2: 10, a3: "a" }, { id: 2001, b1: 1, b2: 20, b3: "a" } },
           { { id: 1001, a1: 1, a2: 10, a3: "a" }, { id: 2002, b1: 1, b2: 19, b3: "a" } },
@@ -117,7 +117,7 @@ test_block:
                 from t1, t2
                 where t1.a1 = 1 and t2.b1 = 1 and t1.a3 = t2.b3
                 order by t1.a2 desc
-      - explain: "ISCAN(t1$a1_a2 [EQUALS promote(@c22 AS LONG)] REVERSE) | FLATMAP q0 -> { COVERING(t2$b1_b3 [EQUALS promote(@c22 AS LONG)] -> [b1: KEY:[0], b3: KEY:[1], id: KEY:[2]]) | FILTER q0.a3 EQUALS _.b3 | FETCH AS q1 RETURN ((q0.id AS id, q0.a1 AS a1, q0.a2 AS a2, q0.a3 AS a3) AS _0, (q1.id AS id, q1.b1 AS b1, q1.b2 AS b2, q1.b3 AS b3) AS _1) }"
+      - explain: "ISCAN(t1$a1_a2 [EQUALS promote(@c22 AS LONG)] REVERSE) | FLATMAP q0 -> { ISCAN(t2$b1 [EQUALS promote(@c22 AS LONG)]) | FILTER q0.a3 EQUALS _.b3 AS q1 RETURN ((q0.id AS id, q0.a1 AS a1, q0.a2 AS a2, q0.a3 AS a3) AS _0, (q1.id AS id, q1.b1 AS b1, q1.b2 AS b2, q1.b3 AS b3) AS _1) }"
       - result: [
           { { id: 1004, a1: 1, a2: 13, a3: "b" }, { id: 2003, b1: 1, b2: 18, b3: "b" } },
           { { id: 1004, a1: 1, a2: 13, a3: "b" }, { id: 2004, b1: 1, b2: 17, b3: "b" } },
@@ -440,7 +440,7 @@ test_block:
                 where t1.a1 IN (1, 2) and t3.aRef = t1.id
                 order by t1.a1, t1.a2
       # Order by a1, a2 also gives us an in join.
-      - explain: "[IN arrayDistinct(promote(@c22 AS ARRAY(LONG))) SORTED] | INJOIN q0 -> { ISCAN(t1$a1_a2 [EQUALS q0]) | FLATMAP q1 -> { ISCAN(t3$aRef [EQUALS q1.id]) AS q2 RETURN ((q1.id AS id, q1.a1 AS a1, q1.a2 AS a2, q1.a3 AS a3) AS _0, (q2.id AS id, q2.c1 AS c1, q2.c2 AS c2, q2.c3 AS c3, q2.aRef AS aRef) AS _1) } }"
+      - explain: "[IN arrayDistinct(promote(@c22 AS ARRAY(LONG))) SORTED] | INJOIN q0 -> { ISCAN(t1$a1_a2 [EQUALS q0]) } | FLATMAP q1 -> { ISCAN(t3$aRef [EQUALS q1.id]) AS q2 RETURN ((q1.id AS id, q1.a1 AS a1, q1.a2 AS a2, q1.a3 AS a3) AS _0, (q2.id AS id, q2.c1 AS c1, q2.c2 AS c2, q2.c3 AS c3, q2.aRef AS aRef) AS _1) }"
       - result: [
          { { id: 1001, a1: 1, a2: 10, a3: "a" }, { id: 3001, c1: 1, c2: 10, c3: "a", aRef: 1001 } },
          { { id: 1002, a1: 1, a2: 11, a3: "b" }, { id: 3002, c1: 1, c2: 11, c3: "a", aRef: 1002 } },
@@ -509,7 +509,7 @@ test_block:
                 from t1_f(1) as a, t2_f(1) as b
                 where a.a3 = b.b3
                 order by a.a2
-      - explain: "ISCAN(t1$a1_a2 [EQUALS promote(@c16 AS LONG)]) | FLATMAP q0 -> { COVERING(t2$b1_b3 [EQUALS promote(@c16 AS LONG)] -> [b1: KEY:[0], b3: KEY:[1], id: KEY:[2]]) | FILTER q0.a3 EQUALS _.b3 | FETCH AS q1 RETURN ((q0.__ROW_VERSION AS __ROW_VERSION, q0.id AS id, q0.a1 AS a1, q0.a2 AS a2, q0.a3 AS a3) AS _0, (q1.__ROW_VERSION AS __ROW_VERSION, q1.id AS id, q1.b1 AS b1, q1.b2 AS b2, q1.b3 AS b3) AS _1) }"
+      - explain: "ISCAN(t1$a1_a2 [EQUALS promote(@c16 AS LONG)]) | FLATMAP q0 -> { ISCAN(t2$b1 [EQUALS promote(@c16 AS LONG)]) | FILTER q0.a3 EQUALS _.b3 AS q1 RETURN ((q0.__ROW_VERSION AS __ROW_VERSION, q0.id AS id, q0.a1 AS a1, q0.a2 AS a2, q0.a3 AS a3) AS _0, (q1.__ROW_VERSION AS __ROW_VERSION, q1.id AS id, q1.b1 AS b1, q1.b2 AS b2, q1.b3 AS b3) AS _1) }"
       - result: [
           { { '__ROW_VERSION': !not_null _, id: 1001, a1: 1, a2: 10, a3: "a" }, { '__ROW_VERSION': !not_null _, id: 2001, b1: 1, b2: 20, b3: "a" } },
           { { '__ROW_VERSION': !not_null _, id: 1001, a1: 1, a2: 10, a3: "a" }, { '__ROW_VERSION': !not_null _, id: 2002, b1: 1, b2: 19, b3: "a" } },

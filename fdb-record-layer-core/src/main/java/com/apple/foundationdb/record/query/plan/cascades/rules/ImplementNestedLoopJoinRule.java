@@ -25,13 +25,16 @@ import com.apple.foundationdb.record.logging.KeyValueLogMessage;
 import com.apple.foundationdb.record.query.plan.cascades.ImplementationCascadesRule;
 import com.apple.foundationdb.record.query.plan.cascades.ImplementationCascadesRuleCall;
 import com.apple.foundationdb.record.query.plan.cascades.PlanPartition;
+import com.apple.foundationdb.record.query.plan.cascades.PlanPartitions;
 import com.apple.foundationdb.record.query.plan.cascades.Quantifier;
 import com.apple.foundationdb.record.query.plan.cascades.Reference;
+import com.apple.foundationdb.record.query.plan.cascades.RequestedOrdering;
 import com.apple.foundationdb.record.query.plan.cascades.RequestedOrderingConstraint;
 import com.apple.foundationdb.record.query.plan.cascades.debug.Debugger;
 import com.apple.foundationdb.record.query.plan.cascades.expressions.SelectExpression;
 import com.apple.foundationdb.record.query.plan.cascades.matching.structure.BindingMatcher;
 import com.apple.foundationdb.record.query.plan.cascades.predicates.QueryPredicate;
+import com.apple.foundationdb.record.query.plan.cascades.properties.OrderingProperty;
 import com.apple.foundationdb.record.query.plan.cascades.values.NullValue;
 import com.apple.foundationdb.record.query.plan.plans.RecordQueryDefaultOnEmptyPlan;
 import com.apple.foundationdb.record.query.plan.plans.RecordQueryFirstOrDefaultPlan;
@@ -50,7 +53,7 @@ import java.util.List;
 import static com.apple.foundationdb.record.query.plan.cascades.matching.structure.MultiMatcher.all;
 import static com.apple.foundationdb.record.query.plan.cascades.matching.structure.PlanPartitionMatchers.anyPlanPartition;
 import static com.apple.foundationdb.record.query.plan.cascades.matching.structure.PlanPartitionMatchers.planPartitions;
-import static com.apple.foundationdb.record.query.plan.cascades.matching.structure.PlanPartitionMatchers.rollUpPartitions;
+import static com.apple.foundationdb.record.query.plan.cascades.matching.structure.PlanPartitionMatchers.rollUpPartitionsTo;
 import static com.apple.foundationdb.record.query.plan.cascades.matching.structure.QuantifierMatchers.anyQuantifierOverRef;
 import static com.apple.foundationdb.record.query.plan.cascades.matching.structure.RelationalExpressionMatchers.canBeImplemented;
 import static com.apple.foundationdb.record.query.plan.cascades.matching.structure.RelationalExpressionMatchers.selectExpression;
@@ -70,7 +73,7 @@ public class ImplementNestedLoopJoinRule extends ImplementationCascadesRule<Sele
 
     @Nonnull
     private static final BindingMatcher<Reference> outerReferenceMatcher =
-            planPartitions(rollUpPartitions(all(outerPlanPartitionsMatcher)));
+            planPartitions(rollUpPartitionsTo(all(outerPlanPartitionsMatcher), OrderingProperty.ordering()));
     @Nonnull
     private static final BindingMatcher<Quantifier> outerQuantifierMatcher = anyQuantifierOverRef(outerReferenceMatcher);
     @Nonnull
@@ -78,7 +81,7 @@ public class ImplementNestedLoopJoinRule extends ImplementationCascadesRule<Sele
 
     @Nonnull
     private static final BindingMatcher<Reference> innerReferenceMatcher =
-            planPartitions(rollUpPartitions(all(innerPlanPartitionsMatcher)));
+            planPartitions(rollUpPartitionsTo(all(innerPlanPartitionsMatcher), OrderingProperty.ordering()));
     @Nonnull
     private static final BindingMatcher<Quantifier> innerQuantifierMatcher = anyQuantifierOverRef(innerReferenceMatcher);
     @Nonnull
@@ -107,9 +110,6 @@ public class ImplementNestedLoopJoinRule extends ImplementationCascadesRule<Sele
 
         final var outerReference = bindings.get(outerReferenceMatcher);
         final var innerReference = bindings.get(innerReferenceMatcher);
-
-        final var outerPartition = bindings.get(outerPlanPartitionsMatcher);
-        final var innerPartition = bindings.get(innerPlanPartitionsMatcher);
 
         final var joinName = Debugger.mapDebugger(debugger -> debugger.nameForObject(call.getRoot()) + "[" + debugger.nameForObject(selectExpression) + "]: " + outerQuantifier.getAlias() + " ⨝ " + innerQuantifier.getAlias()).orElse("not in debug mode");
         Debugger.withDebugger(debugger -> logger.debug(KeyValueLogMessage.of("attempting join", "joinedTables", joinName, "requestedOrderings", requestedOrderings)));
@@ -158,44 +158,49 @@ public class ImplementNestedLoopJoinRule extends ImplementationCascadesRule<Sele
         final List<QueryPredicate> outerPredicates = outerPredicatesBuilder.build();
         final List<QueryPredicate> outerInnerPredicates = outerInnerPredicatesBuilder.build();
 
-        var outerRef = call.memoizeMemberPlansFromOther(outerReference, outerPartition.getPlans());
+        //
+        // If we care about the ordering, we want to return one plan for each combination of inner and
+        // outer ordering so that we preserve any plan that may match our requested ordering.
+        // If we don't care about the ordering, we want to roll up all the child partitions so that
+        // we only produce one plan
+        //
+        boolean isPreserveOrderOnly = requestedOrderings.stream().anyMatch(RequestedOrdering::isPreserve);
 
-        if (outerQuantifier instanceof Quantifier.Existential) {
-            outerRef = call.memoizePlan(
-                    new RecordQueryFirstOrDefaultPlan(Quantifier.physicalBuilder().withAlias(outerAlias).build(outerRef),
-                            new NullValue(outerQuantifier.getFlowedObjectType())));
-        }  else if (outerQuantifier instanceof Quantifier.ForEach && ((Quantifier.ForEach)outerQuantifier).isNullOnEmpty()) {
-            outerRef = call.memoizePlan(
+        for (PlanPartition outerPlanPartition : maybeCollapsePartitions(isPreserveOrderOnly, bindings.getAll(outerPlanPartitionsMatcher))) {
+            final var newOuterQuantifier = planPartitionToPhysical(call, outerQuantifier, outerReference, outerPredicates, outerPlanPartition);
+            for (PlanPartition innerPlanPartition : maybeCollapsePartitions(isPreserveOrderOnly, bindings.getAll(innerPlanPartitionsMatcher))) {
+                final var newInnerQuantifier = planPartitionToPhysical(call, innerQuantifier, innerReference, outerInnerPredicates, innerPlanPartition);
+                call.yieldPlan(new RecordQueryFlatMapPlan(newOuterQuantifier, newInnerQuantifier,
+                        selectExpression.getResultValue(), innerQuantifier instanceof Quantifier.Existential));
+            }
+        }
+    }
+
+    @Nonnull
+    private List<PlanPartition> maybeCollapsePartitions(boolean isPreserveOrderOnly, List<PlanPartition> partitions) {
+        return isPreserveOrderOnly ? PlanPartitions.rollUpTo(partitions, ImmutableSet.of()) : partitions;
+    }
+
+    @Nonnull
+    private Quantifier.Physical planPartitionToPhysical(@Nonnull ImplementationCascadesRuleCall call, @Nonnull Quantifier quantifier, @Nonnull Reference reference, @Nonnull List<QueryPredicate> predicates, @Nonnull PlanPartition planPartition) {
+        var ref = call.memoizeMemberPlansFromOther(reference, planPartition.getPlans());
+
+        if (quantifier instanceof Quantifier.Existential) {
+            ref = call.memoizePlan(
+                    new RecordQueryFirstOrDefaultPlan(Quantifier.physicalBuilder().withAlias(quantifier.getAlias()).build(ref),
+                            new NullValue(quantifier.getFlowedObjectType())));
+        }  else if (quantifier instanceof Quantifier.ForEach && ((Quantifier.ForEach)quantifier).isNullOnEmpty()) {
+            ref = call.memoizePlan(
                     new RecordQueryDefaultOnEmptyPlan(
-                            Quantifier.physicalBuilder().withAlias(outerAlias).build(outerRef),
-                            new NullValue(outerQuantifier.getFlowedObjectType())));
+                            Quantifier.physicalBuilder().withAlias(quantifier.getAlias()).build(ref),
+                            new NullValue(quantifier.getFlowedObjectType())));
         }
 
-        if (!outerPredicates.isEmpty()) {
-            // create a new quantifier using a new alias
-            final var newOuterLowerQuantifier = Quantifier.physicalBuilder().withAlias(outerAlias).build(outerRef);
-            outerRef = call.memoizePlan(new RecordQueryPredicatesFilterPlan(newOuterLowerQuantifier, outerPredicates));
+        if (!predicates.isEmpty()) {
+            final var newLowerQuantifier = Quantifier.physicalBuilder().withAlias(quantifier.getAlias()).build(ref);
+            ref = call.memoizePlan(new RecordQueryPredicatesFilterPlan(newLowerQuantifier, predicates));
         }
 
-        final var newOuterQuantifier =
-                Quantifier.physicalBuilder().withAlias(outerAlias).build(outerRef);
-
-        var innerRef =
-                call.memoizeMemberPlansFromOther(innerReference, innerPartition.getPlans());
-
-        if (innerQuantifier instanceof Quantifier.Existential) {
-            innerRef = call.memoizePlan(new RecordQueryFirstOrDefaultPlan(Quantifier.physicalBuilder().withAlias(innerAlias).build(innerRef),
-                    new NullValue(innerQuantifier.getFlowedObjectType())));
-        }
-
-        if (!outerInnerPredicates.isEmpty()) {
-            final var newInnerLowerQuantifier = Quantifier.physicalBuilder().withAlias(innerAlias).build(innerRef);
-            innerRef = call.memoizePlan(new RecordQueryPredicatesFilterPlan(newInnerLowerQuantifier, outerInnerPredicates));
-        }
-
-        final var newInnerQuantifier = Quantifier.physicalBuilder().withAlias(innerAlias).build(innerRef);
-
-        call.yieldPlan(new RecordQueryFlatMapPlan(newOuterQuantifier, newInnerQuantifier,
-                selectExpression.getResultValue(), innerQuantifier instanceof Quantifier.Existential));
+        return Quantifier.physicalBuilder().withAlias(quantifier.getAlias()).build(ref);
     }
 }
