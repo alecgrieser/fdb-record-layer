@@ -160,14 +160,14 @@ all-tests:
         q1.foo.tableA.A2 AS foo.tableA.A2, q1.foo.tableA.A3 AS foo.tableA.A3, q0.foo.tableB.B1
         AS foo.tableB.B1, q0.foo.tableB.B2 AS foo.tableB.B2, q0.foo.tableB.B3 AS foo.tableB.B3)
         }
-    task_count: 798
-    task_total_time_ms: 34
-    transform_count: 214
-    transform_time_ms: 17
-    transform_yield_count: 69
+    task_count: 952
+    task_total_time_ms: 19
+    transform_count: 229
+    transform_time_ms: 6
+    transform_yield_count: 79
     insert_time_ms: 1
-    insert_new_count: 107
-    insert_reused_count: 8
+    insert_new_count: 125
+    insert_reused_count: 12
 -   query: EXPLAIN select "foo$tableC$C2", sum("foo$tableC$C1") from "foo$tableC"
         group by "foo$tableC$C2";
     ref: valid-identifiers.yamsql:314

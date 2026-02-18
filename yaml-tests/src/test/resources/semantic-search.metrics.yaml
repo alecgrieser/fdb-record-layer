@@ -212,13 +212,13 @@ semantic-search-queries:
         [EQUALS q1.ZONE, EQUALS q1.BOOKSHELF]:{DISTANCE_RANK_LESS_THAN_OR_EQUAL q1.EMBEDDING:
         @c95}:[] BY_DISTANCE) AS q2 RETURN q2 } AS q2 RETURN (q0.REVIEWID AS REVIEWID,
         q0.RATING AS RATING, q2.DOCID AS DOCID, q2.TITLE AS TITLE) }'
-    task_count: 1454
-    task_total_time_ms: 72
-    transform_count: 694
-    transform_time_ms: 37
-    transform_yield_count: 112
+    task_count: 1476
+    task_total_time_ms: 97
+    transform_count: 696
+    transform_time_ms: 44
+    transform_yield_count: 114
     insert_time_ms: 4
-    insert_new_count: 120
+    insert_new_count: 122
     insert_reused_count: 35
 -   query: EXPLAIN select r.reviewText, d2.title from reviews r join documents d1
         on r.zone = d1.zone and r.docId = d1.docId join documents d2 on d2.zone =
@@ -232,13 +232,13 @@ semantic-search-queries:
         [EQUALS q1.ZONE, EQUALS promote(@c47 AS STRING)]:{DISTANCE_RANK_LESS_THAN_OR_EQUAL
         q1.EMBEDDING: @c86}:[] BY_DISTANCE) AS q2 RETURN q2 } AS q2 RETURN (q0.REVIEWTEXT
         AS REVIEWTEXT, q2.TITLE AS TITLE) }'
-    task_count: 1672
-    task_total_time_ms: 81
-    transform_count: 808
-    transform_time_ms: 40
-    transform_yield_count: 126
-    insert_time_ms: 4
-    insert_new_count: 134
+    task_count: 1694
+    task_total_time_ms: 101
+    transform_count: 810
+    transform_time_ms: 42
+    transform_yield_count: 128
+    insert_time_ms: 6
+    insert_new_count: 136
     insert_reused_count: 53
 -   query: EXPLAIN select r.reviewId, d2.docId, d2.title from reviews r join documents
         d1 on r.zone = d1.zone and r.docId = d1.docId join documents d2 on d2.zone
@@ -253,13 +253,13 @@ semantic-search-queries:
         AS STRING) AND _.DOCID EQUALS q0.DOCID AS q2 RETURN (q2 AS _0, q1 AS _1) }
         AS q3 RETURN (q3._0.REVIEWID AS REVIEWID, q3._1.DOCID AS DOCID, q3._1.TITLE
         AS TITLE) }'
-    task_count: 1451
-    task_total_time_ms: 80
-    transform_count: 690
-    transform_time_ms: 41
-    transform_yield_count: 116
-    insert_time_ms: 4
-    insert_new_count: 114
+    task_count: 1473
+    task_total_time_ms: 44
+    transform_count: 692
+    transform_time_ms: 22
+    transform_yield_count: 118
+    insert_time_ms: 3
+    insert_new_count: 116
     insert_reused_count: 33
 -   query: EXPLAIN select docId, title, euclidean_distance(embedding, ?) from multiTypePartitionDocs
         where zoneId = 1 and bookshelf = 'fiction' qualify row_number() over (partition

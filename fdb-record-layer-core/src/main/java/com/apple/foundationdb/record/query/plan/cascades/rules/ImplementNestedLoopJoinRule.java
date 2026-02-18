@@ -25,7 +25,6 @@ import com.apple.foundationdb.record.logging.KeyValueLogMessage;
 import com.apple.foundationdb.record.query.plan.cascades.ImplementationCascadesRule;
 import com.apple.foundationdb.record.query.plan.cascades.ImplementationCascadesRuleCall;
 import com.apple.foundationdb.record.query.plan.cascades.PlanPartition;
-import com.apple.foundationdb.record.query.plan.cascades.PlanPartitions;
 import com.apple.foundationdb.record.query.plan.cascades.Quantifier;
 import com.apple.foundationdb.record.query.plan.cascades.Reference;
 import com.apple.foundationdb.record.query.plan.cascades.RequestedOrdering;
@@ -178,7 +177,8 @@ public class ImplementNestedLoopJoinRule extends ImplementationCascadesRule<Sele
 
     @Nonnull
     private List<PlanPartition> maybeCollapsePartitions(boolean isPreserveOrderOnly, List<PlanPartition> partitions) {
-        return isPreserveOrderOnly ? PlanPartitions.rollUpTo(partitions, ImmutableSet.of()) : partitions;
+        // return isPreserveOrderOnly ? PlanPartitions.rollUpTo(partitions, ImmutableSet.of()) : partitions;
+        return partitions;
     }
 
     @Nonnull
