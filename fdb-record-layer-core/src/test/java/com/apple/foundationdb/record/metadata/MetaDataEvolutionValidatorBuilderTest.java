@@ -115,6 +115,14 @@ class MetaDataEvolutionValidatorBuilderTest {
     }
 
     @Test
+    void allowFormerIndexNameChange() {
+        testSettingBooleanOption("allowFormerIndexNameChange",
+                MetaDataEvolutionValidator.Builder::setAllowFormerIndexNameChange,
+                MetaDataEvolutionValidator.Builder::allowsFormerIndexNameChange,
+                MetaDataEvolutionValidator::allowsFormerIndexNameChange);
+    }
+
+    @Test
     void allowOlderFormerIndexAddedVersion() {
         testSettingBooleanOption("allowOlderFormerIndexAddedVersion",
                 MetaDataEvolutionValidator.Builder::setAllowOlderFormerIndexAddedVerions,

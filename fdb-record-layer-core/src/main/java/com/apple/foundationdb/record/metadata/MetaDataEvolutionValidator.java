@@ -95,6 +95,7 @@ public class MetaDataEvolutionValidator {
     private final boolean allowNoSinceVersion;
     private final boolean allowIndexRebuilds;
     private final boolean allowMissingFormerIndexNames;
+    private final boolean allowFormerIndexNameChange;
     private final boolean allowOlderFormerIndexAddedVersions;
     private final boolean allowUnsplitToSplit;
     private final boolean disallowTypeRenames;
@@ -105,6 +106,7 @@ public class MetaDataEvolutionValidator {
         this.allowNoSinceVersion = false;
         this.allowIndexRebuilds = false;
         this.allowMissingFormerIndexNames = false;
+        this.allowFormerIndexNameChange = false;
         this.allowOlderFormerIndexAddedVersions = false;
         this.allowUnsplitToSplit = false;
         this.disallowTypeRenames = false;
@@ -116,6 +118,7 @@ public class MetaDataEvolutionValidator {
         this.allowNoSinceVersion = builder.allowNoSinceVersion;
         this.allowIndexRebuilds = builder.allowIndexRebuilds;
         this.allowMissingFormerIndexNames = builder.allowMissingFormerIndexNames;
+        this.allowFormerIndexNameChange = builder.allowFormerIndexNameChange;
         this.allowOlderFormerIndexAddedVersions = builder.allowOlderFormerIndexAddedVersions;
         this.allowUnsplitToSplit = builder.allowUnsplitToSplit;
         this.disallowTypeRenames = builder.disallowTypeRenames;
@@ -738,6 +741,10 @@ public class MetaDataEvolutionValidator {
         return allowMissingFormerIndexNames;
     }
 
+    public boolean allowsFormerIndexNameChange() {
+        return allowFormerIndexNameChange;
+    }
+
     /**
      * Whether this validator allows former indexes to set their added version to something that is older than
      * necessary. The added version of a {@link FormerIndex} is used as an optimization at meta-data upgrade
@@ -827,6 +834,7 @@ public class MetaDataEvolutionValidator {
         private boolean allowNoSinceVersion;
         private boolean allowIndexRebuilds;
         private boolean allowMissingFormerIndexNames;
+        private boolean allowFormerIndexNameChange;
         private boolean allowOlderFormerIndexAddedVersions;
         private boolean allowUnsplitToSplit;
         private boolean disallowTypeRenames;
@@ -837,6 +845,7 @@ public class MetaDataEvolutionValidator {
             this.allowNoSinceVersion = validator.allowNoSinceVersion;
             this.allowIndexRebuilds = validator.allowIndexRebuilds;
             this.allowMissingFormerIndexNames = validator.allowMissingFormerIndexNames;
+            this.allowFormerIndexNameChange = validator.allowFormerIndexNameChange;
             this.allowOlderFormerIndexAddedVersions = validator.allowOlderFormerIndexAddedVersions;
             this.allowUnsplitToSplit = validator.allowUnsplitToSplit;
             this.disallowTypeRenames = validator.disallowTypeRenames;
@@ -952,6 +961,16 @@ public class MetaDataEvolutionValidator {
          */
         public boolean allowsMissingFormerIndexNames() {
             return allowMissingFormerIndexNames;
+        }
+
+        @Nonnull
+        public Builder setAllowFormerIndexNameChange(boolean allowFormerIndexNameChange) {
+            this.allowFormerIndexNameChange = allowFormerIndexNameChange;
+            return this;
+        }
+
+        public boolean allowsFormerIndexNameChange() {
+            return allowFormerIndexNameChange;
         }
 
         /**
