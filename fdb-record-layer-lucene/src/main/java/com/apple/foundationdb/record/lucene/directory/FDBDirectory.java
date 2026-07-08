@@ -112,6 +112,10 @@ import static org.apache.lucene.codecs.lucene86.Lucene86SegmentInfoFormat.SI_EXT
  *     <li>As more data is written into Lucene, files are continually merged via a <a href="https://lucene.apache.org/core/7_6_0/core/org/apache/lucene/index/MergePolicy.html">MergePolicy</a></li>
  * </ul>
  *
+ * <p>
+ * Documentation change to kick off PRB.
+ * </p>
+ *
  * @see <a href="https://lucene.apache.org/core/7_6_0/core/org/apache/lucene/store/Directory.html">Directory</a>
  */
 @API(API.Status.EXPERIMENTAL)
