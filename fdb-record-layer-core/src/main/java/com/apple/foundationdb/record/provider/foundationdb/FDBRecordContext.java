@@ -550,10 +550,11 @@ public class FDBRecordContext extends FDBTransactionContext implements AutoClose
     @Override
     @Nonnull
     public Transaction ensureActive() {
-        if (transaction == null) {
+        final Transaction tr = transaction;
+        if (tr == null) {
             throw new RecordContextNotActiveException("Transaction is no longer active.");
         }
-        return transaction;
+        return tr;
     }
 
     /**
