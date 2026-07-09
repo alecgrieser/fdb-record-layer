@@ -417,9 +417,15 @@ public class FDBDirectory extends Directory {
     }
 
     public static boolean isStoredFieldsFile(String name) {
-        return name.endsWith(LuceneOptimizedStoredFieldsFormat.STORED_FIELDS_EXTENSION)
-               && !name.startsWith(IndexFileNames.SEGMENTS)
-               && !name.startsWith(IndexFileNames.PENDING_SEGMENTS);
+        boolean hasExtension = name.endsWith(LuceneOptimizedStoredFieldsFormat.STORED_FIELDS_EXTENSION);
+        boolean isSegments = name.startsWith(IndexFileNames.SEGMENTS);
+        boolean isPendingSegments = name.startsWith(IndexFileNames.PENDING_SEGMENTS);
+        return hasExtension && !isSegments && !isPendingSegments;
+    }
+
+    public static boolean untestedMethod() {
+        // this method is untested
+        return Math.random() < 0.5;
     }
 
     /**
