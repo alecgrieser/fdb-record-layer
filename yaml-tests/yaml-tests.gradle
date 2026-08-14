@@ -210,7 +210,12 @@ tasks.register('serverJars', Copy) {
     notCompatibleWithConfigurationCache("Resolves dynamic external server versions at execution time")
     dependsOn ":fdb-relational-server:package", "cleanExternalServerDirectory"
     into project.layout.buildDirectory.dir('externalServer')
-    from { resolveOtherServer(new HashSet<>(permanentlyRejectedServerVersions)) }
+    def mixedModeVersion = providers.gradleProperty('tests.mixedModeVersion').getOrNull()
+    if (mixedModeVersion == null) {
+        from { resolveOtherServer(new HashSet<>(permanentlyRejectedServerVersions)) }
+    } else {
+        from { resolveSpecificServer(mixedModeVersion) }
+    }
     from (rootProject.project("fdb-relational-server").layout.files('.dist')) {
         include("fdb-relational-server-${rootProject.version}-all.jar")
     }

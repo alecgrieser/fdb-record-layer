@@ -260,7 +260,7 @@ public class SemanticVersion implements Comparable<SemanticVersion> {
         }
         String version = versionNumbers.stream().map(Object::toString).collect(Collectors.joining("."));
         if (!prerelease.isEmpty()) {
-            version = version + "-" + prerelease;
+            version = version + "-" + String.join(".", prerelease);
         }
         return version;
     }
