@@ -95,8 +95,8 @@ fdb-relational-core/src/main/antlr/*.tokens
 # AI assistant local analysis artifacts
 /claude-analysis/
 
-# Scratch state/worktrees for dev-tools/mixed_mode_two_branch.py
-/.mixed-mode-two-branch/
+# Scratch state/worktrees for dev-tools/mixed_mode_two_branches.py
+/.mixed-mode-two-branches/
 /.worktrees/
 
 # Claude Code local settings (personal permissions and hooks)
